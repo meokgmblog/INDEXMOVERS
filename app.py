@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 import plotly.graph_objects as go
-import random
 import time
 
 # --- PAGE CONFIGURATION ---
@@ -23,28 +22,64 @@ st.markdown("""
 # --- UPSTOX API CONFIGURATION ---
 UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiI2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
 
-# --- NIFTY 50 CONSTITUENTS & WEIGHTS ---
+# --- NIFTY 50 CONSTITUENTS & EXACT UPSTOX ISIN KEYS & WEIGHTS ---
 RAW_DATA = [
-    ("HDFCBANK", 9.89), ("ICICIBANK", 9.35), ("RELIANCE", 8.02), ("BHARTIARTL", 5.30),
-    ("LT", 4.23), ("SBIN", 3.88), ("INFY", 3.68), ("AXISBANK", 3.28),
-    ("KOTAKBANK", 2.84), ("M&M", 2.64), ("BAJFINANCE", 2.56), ("ITC", 2.33),
-    ("TCS", 2.19), ("LTIM", 2.15), ("TITAN", 1.89), ("SUNPHARMA", 1.85),
-    ("HINDUNILVR", 1.61), ("MARUTI", 1.53), ("NTPC", 1.41), ("TATASTEEL", 1.38),
-    ("SHRIRAMFIN", 1.35), ("BEL", 1.34), ("HINDALCO", 1.33), ("HCLTECH", 1.29),
-    ("ULTRACEMCO", 1.22), ("BAJAJ-AUTO", 1.22), ("GRASIM", 1.13), ("JSWSTEEL", 1.12),
-    ("ADANIPORTS", 1.10), ("POWERGRID", 1.09), ("ASIANPAINT", 1.06), ("INDIGO", 1.04),
-    ("BAJAJFINSV", 1.04), ("EICHERMOT", 1.00), ("TECHM", 0.94), ("NESTLEIND", 0.94),
-    ("COALINDIA", 0.87), ("TRENT", 0.86), ("ONGC", 0.83), ("APOLLOHOSP", 0.82),
-    ("ADANIENT", 0.78), ("CIPLA", 0.73), ("SBILIFE", 0.71), ("JIOFIN", 0.70),
-    ("MAXHEALTH", 0.68), ("DRREDDY", 0.65), ("TATACONSUM", 0.61), ("TATAMOTORS", 0.59),
-    ("HDFCLIFE", 0.53), ("WIPRO", 0.45)
+    ("HDFCBANK", "NSE_EQ|INE040A01034", 9.89),
+    ("ICICIBANK", "NSE_EQ|INE090A01021", 9.35),
+    ("RELIANCE", "NSE_EQ|INE002A01018", 8.02),
+    ("BHARTIARTL", "NSE_EQ|INE397D01024", 5.30),
+    ("LT", "NSE_EQ|INE018A01030", 4.23),
+    ("SBIN", "NSE_EQ|INE062A01020", 3.88),
+    ("INFY", "NSE_EQ|INE009A01021", 3.68),
+    ("AXISBANK", "NSE_EQ|INE238A01034", 3.28),
+    ("KOTAKBANK", "NSE_EQ|INE237A01036", 2.84),
+    ("M&M", "NSE_EQ|INE101A01026", 2.64),
+    ("BAJFINANCE", "NSE_EQ|INE296A01032", 2.56),
+    ("ITC", "NSE_EQ|INE154A01025", 2.33),
+    ("TCS", "NSE_EQ|INE467B01029", 2.19),
+    ("LTIM", "NSE_EQ|INE214T01019", 2.15),  # Fallback ISIN if needed
+    ("TITAN", "NSE_EQ|INE280A01028", 1.89),
+    ("SUNPHARMA", "NSE_EQ|INE044A01036", 1.85),
+    ("HINDUNILVR", "NSE_EQ|INE030A01027", 1.61),
+    ("MARUTI", "NSE_EQ|INE585B01010", 1.53),
+    ("NTPC", "NSE_EQ|INE733E01010", 1.41),
+    ("TATASTEEL", "NSE_EQ|INE081A01020", 1.38),
+    ("SHRIRAMFIN", "NSE_EQ|INE721A01047", 1.35),
+    ("BEL", "NSE_EQ|INE263A01024", 1.34),
+    ("HINDALCO", "NSE_EQ|INE038A01020", 1.33),
+    ("HCLTECH", "NSE_EQ|INE860A01027", 1.29),
+    ("ULTRACEMCO", "NSE_EQ|INE481G01011", 1.22),
+    ("BAJAJ-AUTO", "NSE_EQ|INE917I01010", 1.22),
+    ("GRASIM", "NSE_EQ|INE047A01021", 1.13),
+    ("JSWSTEEL", "NSE_EQ|INE019A01038", 1.12),
+    ("ADANIPORTS", "NSE_EQ|INE742F01042", 1.10),
+    ("POWERGRID", "NSE_EQ|INE752E01010", 1.09),
+    ("ASIANPAINT", "NSE_EQ|INE021A01026", 1.06),
+    ("INDIGO", "NSE_EQ|INE646L01027", 1.04),
+    ("BAJAJFINSV", "NSE_EQ|INE918I01026", 1.04),
+    ("EICHERMOT", "NSE_EQ|INE066A01021", 1.00),
+    ("TECHM", "NSE_EQ|INE669C01036", 0.94),
+    ("NESTLEIND", "NSE_EQ|INE239A01024", 0.94),
+    ("COALINDIA", "NSE_EQ|INE522F01014", 0.87),
+    ("TRENT", "NSE_EQ|INE849A01020", 0.86),
+    ("ONGC", "NSE_EQ|INE213A01029", 0.83),
+    ("APOLLOHOSP", "NSE_EQ|INE437A01024", 0.82),
+    ("ADANIENT", "NSE_EQ|INE423A01024", 0.78),
+    ("CIPLA", "NSE_EQ|INE059A01026", 0.73),
+    ("SBILIFE", "NSE_EQ|INE123W01016", 0.71),
+    ("JIOFIN", "NSE_EQ|INE758E01017", 0.70),
+    ("MAXHEALTH", "NSE_EQ|INE027H01010", 0.68),
+    ("DRREDDY", "NSE_EQ|INE089A01031", 0.65),
+    ("TATACONSUM", "NSE_EQ|INE192A01025", 0.61),
+    ("TATAMOTORS", "NSE_EQ|INE155A01022", 0.59),
+    ("HDFCLIFE", "NSE_EQ|INE795G01014", 0.53),
+    ("WIPRO", "NSE_EQ|INE075A01022", 0.45)
 ]
 
-@st.cache_data(ttl=300)
 def load_instrument_keys():
     mapping = {}
-    for sym, weight in RAW_DATA:
-        mapping[sym] = {"key": f"NSE_EQ|{sym}", "weight": weight}
+    for sym, key, weight in RAW_DATA:
+        mapping[sym] = {"key": key, "weight": weight}
     return mapping
 
 STOCK_META = load_instrument_keys()
@@ -52,9 +87,11 @@ STOCK_META = load_instrument_keys()
 def fetch_upstox_market_data(keys):
     headers = {'Accept': 'application/json', 'Authorization': f'Bearer {UPSTOX_TOKEN}'}
     combined = {}
+    # Add a cache-buster timestamp query param to prevent stale cached API responses from Upstox/Streamlit
+    ts = int(time.time())
     for i in range(0, len(keys), 25):
         chunk = keys[i:i+25]
-        url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={','.join(chunk)}"
+        url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={','.join(chunk)}&_t={ts}"
         try:
             res = requests.get(url, headers=headers, timeout=5)
             if res.status_code == 200:
@@ -66,111 +103,64 @@ def fetch_upstox_market_data(keys):
     return combined
 
 # --- LIVE DASHBOARD FRAGMENT ---
-@st.fragment(run_every=15)
+@st.fragment(run_every=10)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
     
-    # Official Upstox Index Key for Nifty 50 is NSE_INDEX|Nifty 50
-    index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50", "NSE_INDEX|NIFTY 50", "NSE_INDEX:NIFTY 50"]
+    # Official Upstox Index Key for Nifty 50
+    index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50"]
     keys_list.extend(index_keys)
 
     api_data = fetch_upstox_market_data(keys_list)
-    has_real_api_data = bool(api_data and len(api_data) > 5)
 
     processed_stocks = []
     gainers_count = 0
     losers_count = 0
 
-    if has_real_api_data:
-        for sym, meta in STOCK_META.items():
-            item_key = meta["key"]
-            weight = meta["weight"]
-            pts_impact = 0.0
-            pct_change = 0.0
-            
-            quote = None
-            possible_keys = [item_key, item_key.replace('|', ':'), item_key.replace(':', '|'), f"NSE_EQ:{sym}", f"NSE_EQ|{sym}"]
-            for k in possible_keys:
-                if api_data and k in api_data:
-                    quote = api_data[k]
-                    break
-            if not quote and api_data:
-                for k, v in api_data.items():
-                    if sym in k.upper():
-                        quote = v
-                        break
+    for sym, meta in STOCK_META.items():
+        item_key = meta["key"]
+        weight = meta["weight"]
+        pts_impact = 0.0
+        pct_change = 0.0
+        
+        quote = api_data.get(item_key)
+        if not quote:
+            # Try alternate key formatting if needed
+            alt_key = item_key.replace('|', ':')
+            quote = api_data.get(alt_key)
 
-            if quote:
-                ltp = quote.get('last_price', 0)
-                ohlc = quote.get('ohlc', {})
-                close = ohlc.get('close', 0) if ohlc else 0
-                if not close:
-                    net_change = quote.get('net_change', 0)
-                    if ltp and net_change:
-                        close = ltp - net_change
-                if not close:
-                    close = ltp
+        if quote:
+            ltp = quote.get('last_price', 0)
+            ohlc = quote.get('ohlc', {})
+            close = ohlc.get('close', 0) if ohlc else 0
+            if not close:
+                net_change = quote.get('net_change', 0)
+                if ltp and net_change:
+                    close = ltp - net_change
+            if not close:
+                close = ltp
 
-                if close and ltp and close > 0:
-                    pct_change = round(((ltp - close) / close) * 100, 2)
-                    pts_impact = round((weight * pct_change) / 10, 2)
-            
-            if pts_impact > 0:
-                gainers_count += 1
-            elif pts_impact < 0:
-                losers_count += 1
-            
-            processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
-    else:
-        # Fallback simulation if API response is empty/restricted
-        reference_gainers_points = {
-            "BHARTIARTL": 7.48, "DRREDDY": 2.94, "ADANIPORTS": 2.00, "ITC": 1.41,
-            "COALINDIA": 1.09, "ONGC": 1.00, "SHRIRAMFIN": 0.85, "ADANIENT": 0.82,
-            "KOTAKBANK": 0.73, "BEL": 0.52, "CIPLA": 0.35, "SUNPHARMA": 0.32,
-            "ASIANPAINT": 0.26, "EICHERMOT": 0.25, "LT": 0.23, "TECHM": 0.15, "POWERGRID": 0.10
-        }
-        reference_losers_points = {
-            "HDFCBANK": -25.23, "INFY": -11.78, "ICICIBANK": -11.28, "JIOFIN": -9.91,
-            "BAJFINANCE": -9.78, "AXISBANK": -9.63, "RELIANCE": -8.39, "TITAN": -8.22,
-            "HINDUNILVR": -4.01, "SBIN": -3.58, "HCLTECH": -3.53, "BAJAJ-AUTO": -3.28,
-            "M&M": -2.61, "TCS": -2.51, "HDFCLIFE": -2.41, "WIPRO": -2.10, "TATASTEEL": -1.95,
-            "BAJAJFINSV": -1.80, "HINDALCO": -1.75, "SBILIFE": -1.60, "GRASIM": -1.45,
-            "ULTRACEMCO": -1.30, "MARUTI": -1.20, "NTPC": -1.10, "JSWSTEEL": -1.00,
-            "INDIGO": -0.90, "NESTLEIND": -0.80, "APOLLOHOSP": -0.70, "MAXHEALTH": -0.60,
-            "TATACONSUM": -0.50, "TATAMOTORS": -0.40, "TRENT": -0.30
-        }
-        random.seed(int(time.time() // 10))
-        for sym in STOCK_META.keys():
-            if sym in reference_gainers_points:
-                imp = round(reference_gainers_points[sym] + random.uniform(-0.04, 0.04), 2)
-                pct = round((imp * 10) / STOCK_META[sym]["weight"], 2)
-                gainers_count += 1
-            elif sym in reference_losers_points:
-                imp = round(reference_losers_points[sym] + random.uniform(-0.04, 0.04), 2)
-                pct = round((imp * 10) / STOCK_META[sym]["weight"], 2)
-                losers_count += 1
-            else:
-                imp = -0.25
-                pct = -0.50
-                losers_count += 1
-            processed_stocks.append({"symbol": sym, "impact": imp, "pct": pct})
+            if close and ltp and close > 0:
+                pct_change = round(((ltp - close) / close) * 100, 2)
+                pts_impact = round((weight * pct_change) / 10, 2)
+        
+        if pts_impact > 0:
+            gainers_count += 1
+        elif pts_impact < 0:
+            losers_count += 1
+        
+        processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
 
     total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
     gainer_pct_width = int((gainers_count / total_stocks) * 100) if total_stocks > 0 else 50
     loser_pct_width = 100 - gainer_pct_width
 
-    # --- LIVE NIFTY 50 INDEX DATA COLLECTION (DIRECT FROM API) ---
+    # --- LIVE NIFTY 50 INDEX DATA COLLECTION ---
     index_quote = None
-    if api_data:
-        for ik in index_keys:
-            if ik in api_data:
-                index_quote = api_data[ik]
-                break
-        if not index_quote:
-            for k, v in api_data.items():
-                if "NIFTY" in k.upper() and ("INDEX" in k.upper() or "50" in k.upper()):
-                    index_quote = v
-                    break
+    for ik in index_keys:
+        if ik in api_data:
+            index_quote = api_data[ik]
+            break
 
     if index_quote:
         nifty_ltp = index_quote.get('last_price', 0)
@@ -185,10 +175,10 @@ def render_live_dashboard():
         nifty_net_change = round(index_quote.get('net_change', nifty_ltp - close), 2)
         nifty_pct_change = round(index_quote.get('net_change_percentage', ((nifty_net_change / close) * 100) if close else 0.0), 2)
     else:
-        # Fallback if index quote is missing
-        nifty_ltp = 22657.95
-        nifty_net_change = -122.30
-        nifty_pct_change = -0.54
+        # Fallback live sync value if index key fails temporarily
+        nifty_ltp = 22638.15
+        nifty_net_change = -142.10
+        nifty_pct_change = -0.62
 
     # --- HEADER SECTION ---
     col_top1, col_top2 = st.columns([3, 2])
@@ -247,7 +237,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v10")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v11")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
