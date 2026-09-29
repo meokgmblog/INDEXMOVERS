@@ -95,7 +95,7 @@ def fetch_upstox_market_data(keys):
         'Pragma': 'no-cache'
     }
     combined = {}
-    ts = int(time.time() * 1000) # Millisecond precision timestamp to bypass proxy/API caching
+    ts = int(time.time() * 1000)
     
     success_count = 0
     for i in range(0, len(keys), 15):
@@ -130,7 +130,7 @@ def render_live_dashboard():
     api_raw_data = fetch_upstox_market_data(keys_list)
     use_fallback = len(api_raw_data) == 0
 
-    # Build robust lookup map supporting all potential format variations from Upstox API response
+    # Build robust lookup map supporting all format variations
     lookup_map = {}
     for api_key, quote_obj in api_raw_data.items():
         if isinstance(quote_obj, dict):
@@ -201,26 +201,24 @@ def render_live_dashboard():
 
             if quote and isinstance(quote, dict):
                 ltp = float(quote.get('last_price', 0.0))
+                net_chg = float(quote.get('net_change', 0.0))
+                pct_chg = float(quote.get('net_change_percentage', 0.0))
+                
                 ohlc = quote.get('ohlc', {})
-                close = float(ohlc.get('close', 0.0) if ohlc else 0.0)
-                if not close:
-                    close = float(quote.get('prev_close_price', 0.0))
-                if not close:
-                    net_change = float(quote.get('net_change', 0.0))
-                    if ltp and net_change:
-                        close = ltp - net_change
-                if not close:
-                    close = ltp
+                close = float(ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0))
+                
+                if net_chg == 0.0 and close > 0 and ltp > 0:
+                    net_chg = ltp - close
+                if pct_chg == 0.0 and close > 0 and ltp > 0:
+                    pct_chg = ((ltp - close) / close) * 100
 
-                if close and ltp and close > 0:
-                    pct_change = float(quote.get('net_change_percentage', 0.0))
-                    if pct_change == 0.0:
-                        pct_change = round(((ltp - close) / close) * 100, 2)
-                    pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
+                pct_change = round(pct_chg, 2)
+                pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
             
-            if pts_impact > 0:
+            # Use direct stock net change / percentage change to accurately classify Gainer vs Loser
+            if pct_change > 0:
                 gainers_count += 1
-            elif pts_impact < 0:
+            else:
                 losers_count += 1
             
             processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
