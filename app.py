@@ -85,7 +85,7 @@ def load_instrument_keys():
 
 STOCK_META = load_instrument_keys()
 
-def fetch_upstox_market_data(keys):
+def fetch_upstox_ohlc_data(keys):
     headers = {
         'Accept': 'application/json', 
         'Authorization': f'Bearer {UPSTOX_TOKEN}',
@@ -100,7 +100,7 @@ def fetch_upstox_market_data(keys):
     for i in range(0, len(keys), 15):
         chunk = keys[i:i+15]
         encoded_keys = urllib.parse.quote(','.join(chunk))
-        url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}&_t={ts}"
+        url = f"https://api.upstox.com/v2/market-quote/ohlc?instrument_key={encoded_keys}&interval=1d&_t={ts}"
         try:
             res = requests.get(url, headers=headers, timeout=5)
             if res.status_code == 200:
@@ -126,7 +126,7 @@ def render_live_dashboard():
     ]
     keys_list.extend(index_keys)
 
-    api_raw_data = fetch_upstox_market_data(keys_list)
+    api_raw_data = fetch_upstox_ohlc_data(keys_list)
 
     if not api_raw_data:
         st.error("⚠️ Unable to fetch market data from Upstox API. Please check your token or internet connection.")
@@ -160,11 +160,18 @@ def render_live_dashboard():
                 break
 
     if index_quote and isinstance(index_quote, dict):
-        nifty_ltp = float(index_quote.get('last_price', 0.0) or index_quote.get('ltp', 0.0) or 22683.75)
-        ohlc = index_quote.get('ohlc', {})
-        close = float(ohlc.get('close', 0.0) or index_quote.get('prev_close_price', 0.0) or nifty_ltp)
-        nifty_net_change = float(index_quote.get('net_change', 0.0) or index_quote.get('change', 0.0) or (nifty_ltp - close if close else 0.0))
-        nifty_pct_change = float(index_quote.get('net_change_percentage', 0.0) or index_quote.get('net_change_percent', 0.0) or ((nifty_net_change / close) * 100 if close else 0.0))
+        nifty_ltp = float(index_quote.get('last_price', 0.0) or 0.0)
+        nifty_ohlc = index_quote.get('ohlc', {})
+        nifty_prev = index_quote.get('prev_ohlc', {})
+        
+        nifty_close = float(nifty_ohlc.get('close', 0.0) or nifty_ltp)
+        nifty_prev_close = float(nifty_prev.get('close', 0.0) or nifty_close)
+        
+        if nifty_ltp == 0.0:
+            nifty_ltp = nifty_close
+            
+        nifty_net_change = nifty_ltp - nifty_prev_close if nifty_prev_close else 0.0
+        nifty_pct_change = ((nifty_net_change / nifty_prev_close) * 100) if nifty_prev_close else 0.0
     else:
         nifty_ltp = 22683.75
         nifty_net_change = 0.0
@@ -189,24 +196,24 @@ def render_live_dashboard():
 
         is_gainer = False
         if quote and isinstance(quote, dict):
-            ltp = float(quote.get('last_price', 0.0) or quote.get('ltp', 0.0))
-            net_chg = float(quote.get('net_change', 0.0) or quote.get('change', 0.0))
-            pct_chg = float(quote.get('net_change_percentage', 0.0) or quote.get('net_change_percent', 0.0) or quote.get('change_percent', 0.0))
-            
+            ltp = float(quote.get('last_price', 0.0))
             ohlc = quote.get('ohlc', {})
-            close = float(ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0) or quote.get('close_price', 0.0))
+            prev_ohlc = quote.get('prev_ohlc', {})
             
-            # Robust fallback calculation if API returns 0 during closed market hours
-            if pct_chg == 0.0 and close > 0 and ltp > 0:
-                if net_chg == 0.0:
-                    net_chg = ltp - close
-                pct_chg = ((ltp - close) / close) * 100
-
-            pct_change = round(pct_chg, 2)
-            pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
+            current_close = float(ohlc.get('close', 0.0) or ltp)
+            if ltp == 0.0:
+                ltp = current_close
+                
+            prev_close = float(prev_ohlc.get('close', 0.0))
             
-            if pct_change > 0 or net_chg > 0:
-                is_gainer = True
+            if prev_close > 0 and ltp > 0:
+                net_chg = ltp - prev_close
+                pct_chg = (net_chg / prev_close) * 100
+                pct_change = round(pct_chg, 2)
+                pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
+                
+                if pct_chg > 0:
+                    is_gainer = True
         
         if is_gainer:
             gainers_count += 1
@@ -276,7 +283,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v23")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v24")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
@@ -330,6 +337,6 @@ def render_live_dashboard():
                     else:
                         st.markdown("")
 
-    st.caption(f"⚡ Live Upstox API Active (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
+    st.caption(f"⚡ Live Upstox OHLC API Active (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
 
 render_live_dashboard()
