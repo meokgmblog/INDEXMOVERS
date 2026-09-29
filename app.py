@@ -21,12 +21,8 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- SIDEBAR CONFIGURATION ---
-st.sidebar.header("⚙️ API Configuration")
-DEFAULT_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiJ2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
-UPSTOX_TOKEN = st.sidebar.text_input("Upstox Bearer Token", value=DEFAULT_TOKEN, type="password")
-
-force_simulation = st.sidebar.checkbox("Force Simulation Mode (Test UI)", value=False)
+# --- UPSTOX API CONFIGURATION ---
+UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiJ2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
 
 # --- NIFTY 50 CONSTITUENTS & EXACT UPSTOX ISIN KEYS & WEIGHTS ---
 RAW_DATA = [
@@ -108,10 +104,8 @@ def fetch_upstox_market_data(keys):
                 if data:
                     combined.update(data)
                     success_count += 1
-            else:
-                st.sidebar.warning(f"API Warning (Status {res.status_code}): Check Token validity.")
         except Exception as e:
-            st.sidebar.error(f"Connection error: {e}")
+            print(f"API fetch error: {e}")
             pass
     return combined if success_count > 0 else {}
 
@@ -119,13 +113,18 @@ def fetch_upstox_market_data(keys):
 @st.fragment(run_every=10)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
-    index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50"]
+    # Comprehensive list of index key formats used across Upstox API versions
+    index_keys = [
+        "NSE_INDEX|Nifty 50", 
+        "NSE_INDEX:Nifty 50", 
+        "NSE_INDEX|NIFTY 50", 
+        "NSE_INDEX:NIFTY 50",
+        "NSE_INDEX|Nifty 50 Index",
+        "NSE_INDEX|Nifty50"
+    ]
     keys_list.extend(index_keys)
 
-    api_data = {}
-    if not force_simulation:
-        api_data = fetch_upstox_market_data(keys_list)
-        
+    api_data = fetch_upstox_market_data(keys_list)
     use_fallback = len(api_data) == 0
 
     processed_stocks = []
@@ -156,6 +155,7 @@ def render_live_dashboard():
             pct_change = 0.0
             
             quote = None
+            isin_part = item_key.split('|')[-1] if '|' in item_key else item_key.split(':')[-1]
             variants = [item_key, item_key.replace('|', ':'), item_key.replace(':', '|')]
             for v in variants:
                 if api_data and v in api_data:
@@ -163,7 +163,6 @@ def render_live_dashboard():
                     break
             
             if not quote and api_data:
-                isin_part = item_key.split('|')[-1]
                 for k, val in api_data.items():
                     if isin_part in k or sym.upper() in k.upper():
                         quote = val
@@ -175,9 +174,9 @@ def render_live_dashboard():
                 close = ohlc.get('close', 0) if ohlc else 0
                 if not close:
                     close = quote.get('prev_close_price', 0)
-                if not close and ltp:
+                if not close:
                     net_change = quote.get('net_change', 0)
-                    if net_change:
+                    if ltp and net_change:
                         close = ltp - net_change
                 if not close:
                     close = ltp
@@ -193,23 +192,32 @@ def render_live_dashboard():
             
             processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
 
-        # Nifty Index Quote Extraction
+        # Nifty Index Quote Extraction supporting multiple key formats and fallbacks
         index_quote = None
+        matched_ik = None
         for ik in index_keys:
             variants = [ik, ik.replace('|', ':'), ik.replace(':', '|')]
             for v in variants:
                 if api_data and v in api_data:
                     index_quote = api_data[v]
+                    matched_ik = v
                     break
             if index_quote:
                 break
+
+        # If not found directly, scan all keys in response for Nifty
+        if not index_quote and api_data:
+            for k, val in api_data.items():
+                if 'NIFTY' in k.upper():
+                    index_quote = val
+                    break
 
         if index_quote and isinstance(index_quote, dict):
             nifty_ltp = index_quote.get('last_price', 22677.00)
             ohlc = index_quote.get('ohlc', {})
             close = ohlc.get('close', 0) or index_quote.get('prev_close_price', nifty_ltp)
             nifty_net_change = round(index_quote.get('net_change', nifty_ltp - close if close else -103.25), 2)
-            nifty_pct_change = round(index_quote.get('net_change_percentage', ((nifty_net_change/close)*100) if close else -0.45), 2)
+            nifty_pct_change = round(index_quote.get('net_change_percentage', (nifty_net_change/close)*100 if close else -0.45), 2)
         else:
             nifty_ltp = 22677.00
             nifty_net_change = -103.25
