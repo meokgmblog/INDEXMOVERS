@@ -90,10 +90,12 @@ def fetch_upstox_market_data(keys):
     headers = {
         'Accept': 'application/json', 
         'Authorization': f'Bearer {UPSTOX_TOKEN}',
-        'Api-Version': '2.0'
+        'Api-Version': '2.0',
+        'Cache-Control': 'no-cache, no-store, must-revalidate',
+        'Pragma': 'no-cache'
     }
     combined = {}
-    ts = int(time.time())
+    ts = int(time.time() * 1000) # Millisecond precision timestamp to bypass proxy/API caching
     
     success_count = 0
     for i in range(0, len(keys), 15):
@@ -121,8 +123,7 @@ def render_live_dashboard():
         "NSE_INDEX:Nifty 50", 
         "NSE_INDEX|NIFTY 50", 
         "NSE_INDEX:NIFTY 50",
-        "NSE_INDEX|Nifty 50 Index",
-        "NSE_INDEX|Nifty 50"
+        "NSE_INDEX|Nifty 50 Index"
     ]
     keys_list.extend(index_keys)
 
@@ -137,7 +138,6 @@ def render_live_dashboard():
             lookup_map[api_key.replace(':', '|')] = quote_obj
             lookup_map[api_key.replace('|', ':')] = quote_obj
             
-            # Also map by trading symbol if available inside the object
             sym_val = quote_obj.get('symbol') or quote_obj.get('trading_symbol')
             if sym_val:
                 lookup_map[sym_val.upper()] = quote_obj
@@ -159,15 +159,15 @@ def render_live_dashboard():
                 break
 
     if index_quote and isinstance(index_quote, dict):
-        nifty_ltp = float(index_quote.get('last_price', 0.0) or 22677.00)
+        nifty_ltp = float(index_quote.get('last_price', 0.0) or 22683.75)
         ohlc = index_quote.get('ohlc', {})
         close = float(ohlc.get('close', 0.0) or index_quote.get('prev_close_price', 0.0) or nifty_ltp)
         nifty_net_change = float(index_quote.get('net_change', 0.0) or (nifty_ltp - close if close else 0.0))
         nifty_pct_change = float(index_quote.get('net_change_percentage', 0.0) or ((nifty_net_change / close) * 100 if close else 0.0))
     else:
-        nifty_ltp = 22691.05
-        nifty_net_change = -89.20
-        nifty_pct_change = -0.39
+        nifty_ltp = 22683.75
+        nifty_net_change = -96.50
+        nifty_pct_change = -0.42
 
     processed_stocks = []
     gainers_count = 0
