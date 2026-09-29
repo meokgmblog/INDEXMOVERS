@@ -4,7 +4,6 @@ import requests
 import urllib.parse
 import plotly.graph_objects as go
 import time
-import random
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -128,7 +127,10 @@ def render_live_dashboard():
     keys_list.extend(index_keys)
 
     api_raw_data = fetch_upstox_market_data(keys_list)
-    use_fallback = len(api_raw_data) == 0
+
+    if not api_raw_data:
+        st.error("⚠️ Unable to fetch market data from Upstox API. Please check your token or internet connection.")
+        return
 
     lookup_map = {}
     for api_key, quote_obj in api_raw_data.items():
@@ -165,65 +167,52 @@ def render_live_dashboard():
         nifty_pct_change = float(index_quote.get('net_change_percentage', 0.0) or ((nifty_net_change / close) * 100 if close else 0.0))
     else:
         nifty_ltp = 22683.75
-        nifty_net_change = -96.50
-        nifty_pct_change = -0.42
+        nifty_net_change = 0.0
+        nifty_pct_change = 0.0
 
     processed_stocks = []
     gainers_count = 0
     losers_count = 0
 
-    if use_fallback:
-        random.seed(int(time.time() // 20))
-        for sym, meta in STOCK_META.items():
-            weight = meta["weight"]
-            pct_change = round(random.uniform(-2.2, 1.8), 2)
+    for sym, meta in STOCK_META.items():
+        item_key = meta["key"]
+        weight = meta["weight"]
+        pts_impact = 0.0
+        pct_change = 0.0
+        
+        quote = (
+            lookup_map.get(item_key) or 
+            lookup_map.get(item_key.replace('|', ':')) or 
+            lookup_map.get(item_key.replace(':', '|')) or 
+            lookup_map.get(sym.upper()) or {}
+        )
+
+        is_gainer = False
+        if quote and isinstance(quote, dict):
+            ltp = float(quote.get('last_price', 0.0))
+            net_chg = float(quote.get('net_change', 0.0))
+            pct_chg = float(quote.get('net_change_percentage', 0.0))
+            
+            ohlc = quote.get('ohlc', {})
+            close = float(ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0))
+            
+            if net_chg == 0.0 and close > 0 and ltp > 0:
+                net_chg = ltp - close
+            if pct_chg == 0.0 and close > 0 and ltp > 0:
+                pct_chg = ((ltp - close) / close) * 100
+
+            pct_change = round(pct_chg, 2)
             pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
             
-            if pct_change > 0:
-                gainers_count += 1
-            else:
-                losers_count += 1
-            processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
-    else:
-        for sym, meta in STOCK_META.items():
-            item_key = meta["key"]
-            weight = meta["weight"]
-            pts_impact = 0.0
-            pct_change = 0.0
-            
-            quote = (
-                lookup_map.get(item_key) or 
-                lookup_map.get(item_key.replace('|', ':')) or 
-                lookup_map.get(item_key.replace(':', '|')) or 
-                lookup_map.get(sym.upper()) or {}
-            )
-
-            is_gainer = False
-            if quote and isinstance(quote, dict):
-                ltp = float(quote.get('last_price', 0.0))
-                net_chg = float(quote.get('net_change', 0.0))
-                pct_chg = float(quote.get('net_change_percentage', 0.0))
-                
-                ohlc = quote.get('ohlc', {})
-                close = float(ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0))
-                
-                if net_chg == 0.0 and close > 0 and ltp > 0:
-                    net_chg = ltp - close
-                if pct_chg == 0.0 and close > 0 and ltp > 0:
-                    pct_chg = ((ltp - close) / close) * 100
-
-                pct_change = round(pct_chg, 2)
-                pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
-                
-                if pct_change > 0 or net_chg > 0:
-                    is_gainer = True
-            
-            if is_gainer:
-                gainers_count += 1
-            else:
-                losers_count += 1
-            
-            processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
+            if pct_change > 0 or net_chg > 0:
+                is_gainer = True
+        
+        if is_gainer:
+            gainers_count += 1
+        else:
+            losers_count += 1
+        
+        processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
 
     total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
     gainer_pct_width = int((gainers_count / total_stocks) * 100) if total_stocks > 0 else 50
@@ -286,13 +275,12 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v21")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v22")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
         st.caption("Independent sorted lists matching exact market terminal layout")
 
-        # FIX: Sort Gainers descending by absolute impact, Losers ascending (most negative first) independently
         gainers = sorted([s for s in processed_stocks if s['impact'] > 0], key=lambda x: abs(x['impact']), reverse=True)
         losers = sorted([s for s in processed_stocks if s['impact'] <= 0], key=lambda x: abs(x['impact']), reverse=True)
         
@@ -341,7 +329,6 @@ def render_live_dashboard():
                     else:
                         st.markdown("")
 
-    mode_label = "Live Upstox API Active" if not use_fallback else "Smart Market Simulation Active"
-    st.caption(f"⚡ {mode_label} (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
+    st.caption(f"⚡ Live Upstox API Active (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
 
 render_live_dashboard()
