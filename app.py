@@ -129,14 +129,18 @@ if st.button("🔄 Fetch Live LTP Now"):
                 )
                 
                 ltp = quote.get('last_price', 0.0)
-                ohlc = quote.get('ohlc', {})
-                close = ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0)
+                net_chg = quote.get('net_change', 0.0)
                 
-                if not close and ltp:
-                    net_chg = quote.get('net_change', 0.0)
-                    close = ltp - net_chg if net_chg else ltp
-                    
-                pct_change = round(((ltp - close) / close) * 100, 2) if close > 0 else 0.0
+                # Derive previous close accurately using net_change
+                if net_chg != 0 and ltp > 0:
+                    close = round(ltp - net_chg, 2)
+                else:
+                    ohlc = quote.get('ohlc', {})
+                    close = ohlc.get('close', 0.0) or quote.get('prev_close_price', ltp)
+                
+                pct_change = quote.get('net_change_percentage', 0.0)
+                if pct_change == 0.0 and close > 0 and ltp > 0:
+                    pct_change = round(((ltp - close) / close) * 100, 2)
                 
                 rows.append({
                     "Symbol": sym,
