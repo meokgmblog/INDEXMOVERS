@@ -121,11 +121,16 @@ def render_live_dashboard():
 
     api_raw_data = fetch_upstox_market_data(keys_list)
 
-    # Check if token returned valid live data or empty/restricted response
-    is_live_data_valid = len(api_raw_data) > 0
-    
+    # Verify if API actually returned non-zero prices
+    has_valid_prices = False
+    if api_raw_data:
+        for q in api_raw_data.values():
+            if isinstance(q, dict) and float(q.get('last_price', 0.0) or 0.0) > 0:
+                has_valid_prices = True
+                break
+
     lookup_map = {}
-    if is_live_data_valid:
+    if has_valid_prices:
         for api_key, quote_obj in api_raw_data.items():
             if isinstance(quote_obj, dict):
                 lookup_map[api_key] = quote_obj
@@ -135,12 +140,12 @@ def render_live_dashboard():
                 if sym_val:
                     lookup_map[str(sym_val).upper()] = quote_obj
 
-    # Extract Nifty Index Quote or set realistic fallback values
+    # Nifty Index values
     nifty_ltp = 22683.75
-    nifty_net_change = 45.50
-    nifty_pct_change = 0.20
+    nifty_net_change = 85.20
+    nifty_pct_change = 0.38
 
-    if is_live_data_valid:
+    if has_valid_prices:
         index_quote = None
         for ik in index_keys:
             if ik in lookup_map:
@@ -157,15 +162,15 @@ def render_live_dashboard():
     gainers_count = 0
     losers_count = 0
 
-    # Seed random generator deterministically based on minute if offline/restricted token is used
-    if not is_live_data_valid:
+    # Seed random generator deterministically if using simulation fallback
+    if not has_valid_prices:
         random.seed(int(time.time() // 60))
 
     for sym, meta in STOCK_META.items():
         item_key = meta["key"]
         weight = meta["weight"]
         
-        if is_live_data_valid:
+        if has_valid_prices:
             quote = lookup_map.get(item_key) or lookup_map.get(sym.upper()) or {}
             ltp = float(quote.get('last_price', 0.0))
             ohlc = quote.get('ohlc', {})
@@ -174,13 +179,18 @@ def render_live_dashboard():
             if pct_chg == 0.0 and close > 0 and ltp > 0:
                 pct_chg = ((ltp - close) / close) * 100
         else:
-            # Fallback simulation distribution matching realistic market breadth (approx 30 gainers, 20 losers)
-            pct_chg = round(random.uniform(-1.8, 2.2), 2)
+            # Realistic market breadth distribution (approx 28 gainers, 22 losers)
+            pct_chg = round(random.uniform(-1.5, 1.8), 2)
 
         pct_change = round(pct_chg, 2)
         pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
         
-        is_gainer = pct_change > 0
+        # Ensure exact split if simulation is running so UI looks active and balanced
+        if not has_valid_prices:
+            if pts_impact == 0:
+                pts_impact = round(random.choice([-0.15, 0.15]), 2)
+        
+        is_gainer = pts_impact > 0 or pct_change > 0
         if is_gainer:
             gainers_count += 1
         else:
@@ -249,7 +259,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v26")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v27")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
@@ -303,7 +313,7 @@ def render_live_dashboard():
                     else:
                         st.markdown("")
 
-    status_label = "⚡ Live Upstox API Active" if is_live_data_valid else "⚡ Simulation Mode (Token restricted or market closed)"
+    status_label = "⚡ Live Upstox API Active" if has_valid_prices else "⚡ Market Closed / Token Restricted (Simulation Mode Active)"
     st.caption(f"{status_label} (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
 
 render_live_dashboard()
