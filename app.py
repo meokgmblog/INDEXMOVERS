@@ -89,7 +89,8 @@ STOCK_META = load_instrument_keys()
 def fetch_upstox_market_data(keys):
     headers = {
         'Accept': 'application/json', 
-        'Authorization': f'Bearer {UPSTOX_TOKEN}'
+        'Authorization': f'Bearer {UPSTOX_TOKEN}',
+        'Api-Version': '2.0'
     }
     combined = {}
     ts = int(time.time())
@@ -98,8 +99,7 @@ def fetch_upstox_market_data(keys):
     for i in range(0, len(keys), 15):
         chunk = keys[i:i+15]
         encoded_keys = urllib.parse.quote(','.join(chunk))
-        # Updated to Upstox V3 endpoint for robust full quotes retrieval
-        url = f"https://api.upstox.com/v3/market-quote/quotes?instrument_key={encoded_keys}&_t={ts}"
+        url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}&_t={ts}"
         try:
             res = requests.get(url, headers=headers, timeout=5)
             if res.status_code == 200:
@@ -121,14 +121,15 @@ def render_live_dashboard():
         "NSE_INDEX:Nifty 50", 
         "NSE_INDEX|NIFTY 50", 
         "NSE_INDEX:NIFTY 50",
-        "NSE_INDEX|Nifty 50 Index"
+        "NSE_INDEX|Nifty 50 Index",
+        "NSE_INDEX|Nifty 50"
     ]
     keys_list.extend(index_keys)
 
     api_raw_data = fetch_upstox_market_data(keys_list)
     use_fallback = len(api_raw_data) == 0
 
-    # Build universal lookup map handling pipe/colon and symbol formats
+    # Build robust lookup map supporting all potential format variations from Upstox API response
     lookup_map = {}
     for api_key, quote_obj in api_raw_data.items():
         if isinstance(quote_obj, dict):
@@ -136,17 +137,17 @@ def render_live_dashboard():
             lookup_map[api_key.replace(':', '|')] = quote_obj
             lookup_map[api_key.replace('|', ':')] = quote_obj
             
-            sym = quote_obj.get('symbol')
-            if sym:
-                lookup_map[sym.upper()] = quote_obj
+            # Also map by trading symbol if available inside the object
+            sym_val = quote_obj.get('symbol') or quote_obj.get('trading_symbol')
+            if sym_val:
+                lookup_map[sym_val.upper()] = quote_obj
 
-    # 1. Extract Nifty Index Quote first so we have the accurate live Nifty LTP
+    # 1. Extract Nifty Index Quote accurately
     index_quote = None
     for ik in index_keys:
-        variants = [ik, ik.replace('|', ':'), ik.replace(':', '|')]
-        for v in variants:
-            if v in lookup_map:
-                index_quote = lookup_map[v]
+        for var in [ik, ik.replace('|', ':'), ik.replace(':', '|')]:
+            if var in lookup_map:
+                index_quote = lookup_map[var]
                 break
         if index_quote:
             break
@@ -158,21 +159,15 @@ def render_live_dashboard():
                 break
 
     if index_quote and isinstance(index_quote, dict):
-        nifty_ltp = float(index_quote.get('last_price', 22677.00))
+        nifty_ltp = float(index_quote.get('last_price', 0.0) or 22677.00)
         ohlc = index_quote.get('ohlc', {})
-        close = float(ohlc.get('close', 0) or index_quote.get('prev_close_price', 0))
-        
-        nifty_net_change = float(index_quote.get('net_change', 0.0))
-        if nifty_net_change == 0.0 and close > 0:
-            nifty_net_change = round(nifty_ltp - close, 2)
-            
-        nifty_pct_change = float(index_quote.get('net_change_percentage', 0.0))
-        if nifty_pct_change == 0.0 and close > 0:
-            nifty_pct_change = round((nifty_net_change / close) * 100, 2)
+        close = float(ohlc.get('close', 0.0) or index_quote.get('prev_close_price', 0.0) or nifty_ltp)
+        nifty_net_change = float(index_quote.get('net_change', 0.0) or (nifty_ltp - close if close else 0.0))
+        nifty_pct_change = float(index_quote.get('net_change_percentage', 0.0) or ((nifty_net_change / close) * 100 if close else 0.0))
     else:
-        nifty_ltp = 22677.00
-        nifty_net_change = -103.25
-        nifty_pct_change = -0.45
+        nifty_ltp = 22691.05
+        nifty_net_change = -89.20
+        nifty_pct_change = -0.39
 
     processed_stocks = []
     gainers_count = 0
@@ -206,19 +201,21 @@ def render_live_dashboard():
 
             if quote and isinstance(quote, dict):
                 ltp = float(quote.get('last_price', 0.0))
-                net_chg = float(quote.get('net_change', 0.0))
-                
                 ohlc = quote.get('ohlc', {})
                 close = float(ohlc.get('close', 0.0) if ohlc else 0.0)
                 if not close:
                     close = float(quote.get('prev_close_price', 0.0))
-                if not close and ltp and net_chg:
-                    close = ltp - net_chg
+                if not close:
+                    net_change = float(quote.get('net_change', 0.0))
+                    if ltp and net_change:
+                        close = ltp - net_change
                 if not close:
                     close = ltp
 
-                if close > 0 and ltp > 0:
-                    pct_change = round(((ltp - close) / close) * 100, 2)
+                if close and ltp and close > 0:
+                    pct_change = float(quote.get('net_change_percentage', 0.0))
+                    if pct_change == 0.0:
+                        pct_change = round(((ltp - close) / close) * 100, 2)
                     pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
             
             if pts_impact > 0:
