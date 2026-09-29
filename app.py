@@ -7,10 +7,10 @@ import time
 st.set_page_config(page_title="Nifty 50 LTP Verification", layout="wide")
 
 st.title("🔍 Nifty 50 Live LTP Data Collection & Verification")
-st.markdown("This tool connects directly to the Upstox API using your fresh token to fetch and display the live Last Traded Price (LTP) for all 50 Nifty 50 constituents.")
+st.markdown("Enter your fresh Upstox Access Token below to securely fetch live market data.")
 
-# --- FRESH UPSTOX ACCESS TOKEN ---
-UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2M0FZSEUiLCJqdGkiOiJ2YWJiODQyMTkzOTc2ZDBhZTE1YzE0YzciLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlhdCI6MTc5MDY3Mzk1MywiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiZXhwIjoxNzkwNzE5MjAwfQ.gqcFP5ZUOTNbKDHmP_o32a3s4YI8QEyqYMShV4xoU9k"
+# --- INTERACTIVE TOKEN INPUT FIELD ---
+user_token = st.text_input("Upstox Access Token", type="password", value="")
 
 # --- NIFTY 50 CONSTITUENTS & EXACT UPSTOX ISIN KEYS & WEIGHTS ---
 RAW_DATA = [
@@ -66,8 +66,12 @@ RAW_DATA = [
     ("WIPRO", "NSE_EQ|INE075A01022", 0.45)
 ]
 
-def fetch_market_data(keys):
-    headers = {'Accept': 'application/json', 'Authorization': f'Bearer {UPSTOX_TOKEN}'}
+def fetch_market_data(keys, token):
+    headers = {
+        'Accept': 'application/json', 
+        'Authorization': f'Bearer {token}',
+        'Api-Version': '2.0'
+    }
     combined = {}
     ts = int(time.time())
     
@@ -89,59 +93,60 @@ def fetch_market_data(keys):
     return combined
 
 if st.button("🔄 Fetch Live LTP Now"):
-    keys_list = [item[1] for item in RAW_DATA]
-    api_response = fetch_market_data(keys_list)
-    
-    if not api_response:
-        st.error("Failed to retrieve data.")
+    if not user_token.strip():
+        st.warning("Please enter your Upstox Access Token above.")
     else:
-        # Build robust lookup mapping handling colon/pipe variations and inner tokens/symbols
-        lookup_map = {}
-        for api_key, quote_obj in api_response.items():
-            if isinstance(quote_obj, dict):
-                lookup_map[api_key] = quote_obj
-                lookup_map[api_key.replace(':', '|')] = quote_obj
-                lookup_map[api_key.replace('|', ':')] = quote_obj
-                
-                inst_token = quote_obj.get('instrument_token')
-                if inst_token:
-                    lookup_map[inst_token] = quote_obj
-                    lookup_map[inst_token.replace(':', '|')] = quote_obj
-                    lookup_map[inst_token.replace('|', ':')] = quote_obj
+        keys_list = [item[1] for item in RAW_DATA]
+        api_response = fetch_market_data(keys_list, user_token.strip())
+        
+        if not api_response:
+            st.error("Failed to retrieve data. Please check your token.")
+        else:
+            lookup_map = {}
+            for api_key, quote_obj in api_response.items():
+                if isinstance(quote_obj, dict):
+                    lookup_map[api_key] = quote_obj
+                    lookup_map[api_key.replace(':', '|')] = quote_obj
+                    lookup_map[api_key.replace('|', ':')] = quote_obj
                     
-                sym = quote_obj.get('symbol')
-                if sym:
-                    lookup_map[sym.upper()] = quote_obj
+                    inst_token = quote_obj.get('instrument_token')
+                    if inst_token:
+                        lookup_map[inst_token] = quote_obj
+                        lookup_map[inst_token.replace(':', '|')] = quote_obj
+                        lookup_map[inst_token.replace('|', ':')] = quote_obj
+                        
+                    sym = quote_obj.get('symbol')
+                    if sym:
+                        lookup_map[sym.upper()] = quote_obj
 
-        rows = []
-        for sym, key, weight in RAW_DATA:
-            # Check various keys in our robust lookup map
-            quote = (
-                lookup_map.get(key) or 
-                lookup_map.get(key.replace('|', ':')) or 
-                lookup_map.get(key.replace(':', '|')) or 
-                lookup_map.get(sym.upper()) or {}
-            )
-            
-            ltp = quote.get('last_price', 0.0)
-            ohlc = quote.get('ohlc', {})
-            close = ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0)
-            
-            if not close and ltp:
-                net_chg = quote.get('net_change', 0.0)
-                close = ltp - net_chg if net_chg else ltp
+            rows = []
+            for sym, key, weight in RAW_DATA:
+                quote = (
+                    lookup_map.get(key) or 
+                    lookup_map.get(key.replace('|', ':')) or 
+                    lookup_map.get(key.replace(':', '|')) or 
+                    lookup_map.get(sym.upper()) or {}
+                )
                 
-            pct_change = round(((ltp - close) / close) * 100, 2) if close > 0 else 0.0
-            
-            rows.append({
-                "Symbol": sym,
-                "Instrument Key": key,
-                "Weight (%)": weight,
-                "LTP (₹)": ltp,
-                "Prev Close (₹)": close,
-                "Change (%)": pct_change
-            })
-            
-        df_result = pd.DataFrame(rows)
-        st.success(f"Successfully fetched live data for {len(df_result)} stocks!")
-        st.dataframe(df_result, use_container_width=True)
+                ltp = quote.get('last_price', 0.0)
+                ohlc = quote.get('ohlc', {})
+                close = ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0)
+                
+                if not close and ltp:
+                    net_chg = quote.get('net_change', 0.0)
+                    close = ltp - net_chg if net_chg else ltp
+                    
+                pct_change = round(((ltp - close) / close) * 100, 2) if close > 0 else 0.0
+                
+                rows.append({
+                    "Symbol": sym,
+                    "Instrument Key": key,
+                    "Weight (%)": weight,
+                    "LTP (₹)": ltp,
+                    "Prev Close (₹)": close,
+                    "Change (%)": pct_change
+                })
+                
+            df_result = pd.DataFrame(rows)
+            st.success(f"Successfully fetched live data for {len(df_result)} stocks!")
+            st.dataframe(df_result, use_container_width=True)
