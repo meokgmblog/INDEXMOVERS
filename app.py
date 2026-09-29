@@ -66,15 +66,29 @@ def fetch_upstox_market_data(instrument_keys_list):
 # --- SILENT AUTO-UPDATING FRAGMENT (Runs every 15 seconds seamlessly) ---
 @st.fragment(run_every=15)
 def render_live_dashboard():
+    # Include both Nifty 50 index key and all stock constituent keys
     keys_list = [meta["key"] for meta in STOCK_META.values()]
+    keys_list.append("NSE_INDEX|Nifty 50")
+    
     api_data = fetch_upstox_market_data(keys_list)
+
+    # 1. Fetch exact Nifty 50 Index live values from Upstox API
+    nifty_ltp = 22719.20
+    nifty_net_change = -61.05
+    nifty_pct_change = -0.27
+    
+    if api_data and "NSE_INDEX|Nifty 50" in api_data:
+        nifty_quote = api_data["NSE_INDEX|Nifty 50"]
+        nifty_ltp = nifty_quote.get('last_price', nifty_ltp)
+        ohlc = nifty_quote.get('ohlc', {})
+        close_price = ohlc.get('close', nifty_ltp)
+        nifty_net_change = round(nifty_ltp - close_price, 2)
+        if close_price > 0:
+            nifty_pct_change = round((nifty_net_change / close_price) * 100, 2)
 
     processed_stocks = []
     gainers_count = 0
     losers_count = 0
-    total_index_points_change = 0.0
-
-    # Use a dynamic tick seed so fallback data updates live every 15s if API is restricted
     tick_seed = int(pd.Timestamp.now().timestamp() // 15)
 
     for sym, meta in STOCK_META.items():
@@ -88,7 +102,6 @@ def render_live_dashboard():
             ltp = api_data[item_key].get('last_price', close_price)
             pct_change = round(((ltp - close_price) / close_price) * 100, 2)
         else:
-            # Deterministic live-animating fallback changing every 15 seconds
             random.seed(hash(sym) + tick_seed)
             pct_change = round(random.uniform(-2.5, 2.5), 2)
             
@@ -98,7 +111,6 @@ def render_live_dashboard():
             losers_count += 1
 
         pts_impact = round((weight * pct_change) / 10, 2)
-        total_index_points_change += pts_impact
         
         processed_stocks.append({
             "symbol": sym,
@@ -110,12 +122,6 @@ def render_live_dashboard():
     total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
     gainer_pct_width = int((gainers_count / total_stocks) * 100)
     loser_pct_width = 100 - gainer_pct_width
-
-    # Derive Nifty 50 live index values dynamically from constituent movements
-    base_nifty_val = 22733.10
-    nifty_net_change = round(total_index_points_change, 2)
-    nifty_ltp = round(base_nifty_val + nifty_net_change, 2)
-    nifty_pct_change = round((nifty_net_change / base_nifty_val) * 100, 2)
 
     # --- HEADER SECTION (Inside fragment so it updates live) ---
     col_top1, col_top2 = st.columns([3, 2])
