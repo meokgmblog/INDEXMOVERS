@@ -67,7 +67,7 @@ def fetch_upstox_market_data(keys):
 @st.fragment(run_every=15)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
-    index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50"]
+    index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50", "NSE_INDEX|NIFTY 50", "NSE_INDEX:NIFTY 50"]
     keys_list.extend(index_keys)
 
     api_data = fetch_upstox_market_data(keys_list)
@@ -76,22 +76,37 @@ def render_live_dashboard():
     gainers_count = 0
     losers_count = 0
 
-    # Process live stock data from Upstox API
+    # Process live stock data from Upstox API with robust multi-format matching
     for sym, meta in STOCK_META.items():
         item_key = meta["key"]
         weight = meta["weight"]
         pts_impact = 0.0
         pct_change = 0.0
         
-        if api_data and item_key in api_data:
-            quote = api_data[item_key]
+        quote = None
+        if api_data:
+            for k in [item_key, item_key.replace('|', ':'), item_key.replace(':', '|'), f"NSE_EQ:{sym}", f"NSE_EQ|{sym}"]:
+                if k in api_data:
+                    quote = api_data[k]
+                    break
+            if not quote:
+                for k, v in api_data.items():
+                    if sym in k.upper():
+                        quote = v
+                        break
+
+        if quote:
             ltp = quote.get('last_price', 0)
             ohlc = quote.get('ohlc', {})
-            close = ohlc.get('close', 0)
+            close = ohlc.get('close', 0) if ohlc else 0
             if not close:
                 net_change = quote.get('net_change', 0)
-                close = ltp - net_change if ltp and net_change else 0
-            if close and ltp:
+                if ltp and net_change:
+                    close = ltp - net_change
+            if not close:
+                close = ltp
+
+            if close and ltp and close > 0:
                 pct_change = round(((ltp - close) / close) * 100, 2)
                 pts_impact = round((weight * pct_change) / 10, 2)
         
@@ -108,23 +123,31 @@ def render_live_dashboard():
 
     # --- LIVE NIFTY 50 INDEX DATA COLLECTION ---
     index_quote = None
-    for ik in index_keys:
-        if api_data and ik in api_data:
-            index_quote = api_data[ik]
-            break
+    if api_data:
+        for ik in index_keys:
+            if ik in api_data:
+                index_quote = api_data[ik]
+                break
+        if not index_quote:
+            for k, v in api_data.items():
+                if "NIFTY" in k.upper() and "INDEX" in k.upper():
+                    index_quote = v
+                    break
 
     if index_quote:
         nifty_ltp = index_quote.get('last_price', 0)
         ohlc = index_quote.get('ohlc', {})
-        close = ohlc.get('close', 0) or index_quote.get('prev_close_price', nifty_ltp)
+        close = ohlc.get('close', 0) or index_quote.get('prev_close_price', 0)
         if not nifty_ltp:
             net_chg = index_quote.get('net_change', 0)
-            nifty_ltp = close + net_chg
+            nifty_ltp = close + net_chg if close else 22674.40
+        if not close:
+            close = nifty_ltp
         nifty_net_change = round(nifty_ltp - close, 2)
         nifty_pct_change = round((nifty_net_change / close) * 100, 2) if close else 0.0
     else:
         # Fallback calculation summing stock impacts if index quote is missing
-        base_close = 22780.75
+        base_close = 22674.40
         nifty_net_change = round(sum(s['impact'] for s in processed_stocks), 2)
         nifty_ltp = round(base_close + nifty_net_change, 2)
         nifty_pct_change = round((nifty_net_change / base_close) * 100, 2)
@@ -186,7 +209,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v7")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v8")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
