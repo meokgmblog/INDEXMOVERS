@@ -21,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- UPSTOX API CONFIGURATION ---
-UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2M0FZSEUiLCJqdGkiOiJ2YTMwY2UxNTY4ODI0Zjc3ZDc1NmU3NjgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlzRXh0ZW5kZWQiOnRydWUsImlhdCI6MTc4MTU4MzM4MSwiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiaZXhwIjoxODEzMTgzMjAwfQ.IoRDQhbhcn3w9Fkw75N3eBSamLcaA8GcAhVjf5K-iL8"
+UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2M0FZSEUiLCJqdGkiOiJ2YTMwY2UxNTY4ODI0Zjc3ZDc1NmU3NjgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlzRXh0ZW5kZWQiOnRydWUsImlhdCI6MTc4MTU4MzM4MSwiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiZXhwIjoxODEzMTgzMjAwfQ.IoRDQhbhcn3w9Fkw75N3eBSamLcaA8GcAhVjf5K-iL8"
 
 # --- NIFTY 50 CONSTITUENTS & WEIGHTS ---
 RAW_DATA = [
@@ -76,25 +76,6 @@ def render_live_dashboard():
     has_real_api_data = bool(api_data and len(api_data) > 5)
 
     processed_stocks = []
-    
-    reference_gainers_points = {
-        "BHARTIARTL": 7.48, "DRREDDY": 2.94, "ADANIPORTS": 2.00, "ITC": 1.41,
-        "COALINDIA": 1.09, "ONGC": 1.00, "SHRIRAMFIN": 0.85, "ADANIENT": 0.82,
-        "KOTAKBANK": 0.73, "BEL": 0.52, "CIPLA": 0.35, "SUNPHARMA": 0.32,
-        "ASIANPAINT": 0.26, "EICHERMOT": 0.25, "LT": 0.23, "TECHM": 0.15, "POWERGRID": 0.10
-    }
-    
-    reference_losers_points = {
-        "HDFCBANK": -25.23, "INFY": -11.78, "ICICIBANK": -11.28, "JIOFIN": -9.91,
-        "BAJFINANCE": -9.78, "AXISBANK": -9.63, "RELIANCE": -8.39, "TITAN": -8.22,
-        "HINDUNILVR": -4.01, "SBIN": -3.58, "HCLTECH": -3.53, "BAJAJ-AUTO": -3.28,
-        "M&M": -2.61, "TCS": -2.51, "HDFCLIFE": -2.41, "WIPRO": -2.10, "TATASTEEL": -1.95,
-        "BAJAJFINSV": -1.80, "HINDALCO": -1.75, "SBILIFE": -1.60, "GRASIM": -1.45,
-        "ULTRACEMCO": -1.30, "MARUTI": -1.20, "NTPC": -1.10, "JSWSTEEL": -1.00,
-        "INDIGO": -0.90, "NESTLEIND": -0.80, "APOLLOHOSP": -0.70, "MAXHEALTH": -0.60,
-        "TATACONSUM": -0.50, "TATAMOTORS": -0.40, "TRENT": -0.30, "COALINDIA_DUM": -0.15
-    }
-
     gainers_count = 0
     losers_count = 0
 
@@ -122,33 +103,28 @@ def render_live_dashboard():
                 losers_count += 1
             processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
     else:
-        all_syms = list(STOCK_META.keys())
-        gainers_count = len(reference_gainers_points)
-        
-        tick_seed = int(time.time() // 10)
+        # --- FULLY DYNAMIC SIMULATION FOR ALL 50 STOCKS (NO HARDCODED LISTS) ---
+        tick_seed = int(time.time() // 5)
         random.seed(tick_seed)
 
-        for sym in all_syms:
-            if sym in reference_gainers_points:
-                base_imp = reference_gainers_points[sym]
-                imp = round(base_imp + random.uniform(-0.04, 0.04), 2)
-                pct = round((imp * 10) / STOCK_META[sym]["weight"], 2)
-            elif sym in reference_losers_points:
-                base_imp = reference_losers_points[sym]
-                imp = round(base_imp + random.uniform(-0.04, 0.04), 2)
-                pct = round((imp * 10) / STOCK_META[sym]["weight"], 2)
-                losers_count += 1
+        for sym, meta in STOCK_META.items():
+            weight = meta["weight"]
+            # Randomly fluctuate each stock's impact based on its weight
+            raw_imp = random.uniform(-1.5, 1.2) * (weight / 5.0)
+            imp = round(raw_imp, 2)
+            pct = round((imp * 10) / weight, 2)
+            
+            if imp >= 0:
+                gainers_count += 1
             else:
-                imp = -0.25
-                pct = -0.50
                 losers_count += 1
             processed_stocks.append({"symbol": sym, "impact": imp, "pct": pct})
 
-    total_stocks = gainers_count + losers_count
+    total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
     gainer_pct_width = int((gainers_count / total_stocks) * 100)
     loser_pct_width = 100 - gainer_pct_width
 
-    # --- FULLY DYNAMIC NIFTY 50 COLLECTION & CALCULATION ---
+    # --- FULLY DYNAMIC NIFTY 50 CALCULATION ---
     base_close = 22780.75
     index_quote = None
     for k in ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50"]:
@@ -166,9 +142,9 @@ def render_live_dashboard():
         nifty_net_change = round(nifty_ltp - close, 2)
         nifty_pct_change = round((nifty_net_change / close) * 100, 2)
     else:
-        random.seed(int(time.time() // 5))
+        # Dynamically derive Nifty points from the sum of all 50 live stock impacts
         stock_sum_impact = sum(s['impact'] for s in processed_stocks)
-        nifty_net_change = round(stock_sum_impact + random.uniform(-0.05, 0.05), 2)
+        nifty_net_change = round(stock_sum_impact, 2)
         nifty_ltp = round(base_close + nifty_net_change, 2)
         nifty_pct_change = round((nifty_net_change / base_close) * 100, 2)
 
@@ -229,7 +205,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v6")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v7")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
