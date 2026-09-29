@@ -96,14 +96,9 @@ if st.button("🔄 Fetch Live Index & Stock LTP"):
     if not user_token.strip():
         st.warning("Please enter your Upstox Access Token above.")
     else:
-        # Include Nifty Index keys alongside stock keys
-        index_keys = [
-            "NSE_INDEX|Nifty 50", 
-            "NSE_INDEX:Nifty 50", 
-            "NSE_INDEX|NIFTY 50", 
-            "NSE_INDEX:NIFTY 50"
-        ]
-        keys_list = [item[1] for item in RAW_DATA] + index_keys
+        # Correct unique index key for Nifty 50
+        index_keys = ["NSE_INDEX|Nifty 50"]
+        keys_list = index_keys + [item[1] for item in RAW_DATA]
         
         api_response = fetch_market_data(keys_list, user_token.strip())
         
@@ -120,39 +115,23 @@ if st.button("🔄 Fetch Live Index & Stock LTP"):
                     inst_token = quote_obj.get('instrument_token')
                     if inst_token:
                         lookup_map[inst_token] = quote_obj
-                        lookup_map[inst_token.replace(':', '|')] = quote_obj
-                        lookup_map[inst_token.replace('|', ':')] = quote_obj
                         
                     sym = quote_obj.get('symbol')
                     if sym:
                         lookup_map[sym.upper()] = quote_obj
 
             # 1. Extract Nifty Index Quote
-            nifty_quote = None
-            for ik in index_keys:
-                variants = [ik, ik.replace('|', ':'), ik.replace(':', '|')]
-                for v in variants:
-                    if v in lookup_map:
-                        nifty_quote = lookup_map[v]
-                        break
-                if nifty_quote:
-                    break
+            nifty_quote = lookup_map.get("NSE_INDEX|Nifty 50") or lookup_map.get("NSE_INDEX:Nifty 50")
             
-            if not nifty_quote:
-                for k, val in lookup_map.items():
-                    if 'NIFTY' in k.upper():
-                        nifty_quote = val
-                        break
-
             if nifty_quote:
                 n_ltp = nifty_quote.get('last_price', 0.0)
                 n_net = nifty_quote.get('net_change', 0.0)
                 n_pct = nifty_quote.get('net_change_percentage', 0.0)
                 st.metric(label="NIFTY 50 Index (Live)", value=f"{n_ltp:,.2f}", delta=f"{n_net:+.2f} ({n_pct:+.2f}%)")
             else:
-                st.warning("Could not locate Nifty 50 Index quote directly. Checking constituent summation.")
+                st.warning("Could not locate Nifty 50 Index quote directly via 'NSE_INDEX|Nifty 50'.")
 
-            # 2. Build Stock Rows
+            # 2. Build Stock Rows & calculate cumulative metrics
             rows = []
             for sym, key, weight in RAW_DATA:
                 quote = (
