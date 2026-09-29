@@ -21,8 +21,12 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- UPSTOX API CONFIGURATION ---
-UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiJ2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
+# --- SIDEBAR CONFIGURATION ---
+st.sidebar.header("⚙️ API Configuration")
+DEFAULT_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiJ2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
+UPSTOX_TOKEN = st.sidebar.text_input("Upstox Bearer Token", value=DEFAULT_TOKEN, type="password")
+
+force_simulation = st.sidebar.checkbox("Force Simulation Mode (Test UI)", value=False)
 
 # --- NIFTY 50 CONSTITUENTS & EXACT UPSTOX ISIN KEYS & WEIGHTS ---
 RAW_DATA = [
@@ -97,14 +101,17 @@ def fetch_upstox_market_data(keys):
         encoded_keys = urllib.parse.quote(','.join(chunk))
         url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}&_t={ts}"
         try:
-            res = requests.get(url, headers=headers, timeout=4)
+            res = requests.get(url, headers=headers, timeout=5)
             if res.status_code == 200:
                 res_json = res.json()
                 data = res_json.get('data', {})
                 if data:
                     combined.update(data)
                     success_count += 1
-        except Exception:
+            else:
+                st.sidebar.warning(f"API Warning (Status {res.status_code}): Check Token validity.")
+        except Exception as e:
+            st.sidebar.error(f"Connection error: {e}")
             pass
     return combined if success_count > 0 else {}
 
@@ -115,7 +122,10 @@ def render_live_dashboard():
     index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50"]
     keys_list.extend(index_keys)
 
-    api_data = fetch_upstox_market_data(keys_list)
+    api_data = {}
+    if not force_simulation:
+        api_data = fetch_upstox_market_data(keys_list)
+        
     use_fallback = len(api_data) == 0
 
     processed_stocks = []
@@ -123,11 +133,9 @@ def render_live_dashboard():
     losers_count = 0
 
     if use_fallback:
-        # Realistic simulated market breadth matching current Nifty movement (~ -142 pts)
-        random.seed(int(time.time() // 20)) # updates slightly every 20 seconds
+        random.seed(int(time.time() // 20))
         for sym, meta in STOCK_META.items():
             weight = meta["weight"]
-            # Generate realistic % change between -2.5% and +2.0%
             pct_change = round(random.uniform(-2.2, 1.8), 2)
             pts_impact = round((weight * pct_change) / 10, 2)
             
@@ -137,9 +145,9 @@ def render_live_dashboard():
                 losers_count += 1
             processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
         
-        nifty_ltp = 22638.15
-        nifty_net_change = -142.10
-        nifty_pct_change = -0.62
+        nifty_ltp = 22677.00
+        nifty_net_change = -103.25
+        nifty_pct_change = -0.45
     else:
         for sym, meta in STOCK_META.items():
             item_key = meta["key"]
@@ -148,7 +156,6 @@ def render_live_dashboard():
             pct_change = 0.0
             
             quote = None
-            isin_part = item_key.split('|')[-1] if '|' in item_key else item_key.split(':')[-1]
             variants = [item_key, item_key.replace('|', ':'), item_key.replace(':', '|')]
             for v in variants:
                 if api_data and v in api_data:
@@ -156,6 +163,7 @@ def render_live_dashboard():
                     break
             
             if not quote and api_data:
+                isin_part = item_key.split('|')[-1]
                 for k, val in api_data.items():
                     if isin_part in k or sym.upper() in k.upper():
                         quote = val
@@ -167,9 +175,9 @@ def render_live_dashboard():
                 close = ohlc.get('close', 0) if ohlc else 0
                 if not close:
                     close = quote.get('prev_close_price', 0)
-                if not close:
+                if not close and ltp:
                     net_change = quote.get('net_change', 0)
-                    if ltp and net_change:
+                    if net_change:
                         close = ltp - net_change
                 if not close:
                     close = ltp
@@ -197,15 +205,15 @@ def render_live_dashboard():
                 break
 
         if index_quote and isinstance(index_quote, dict):
-            nifty_ltp = index_quote.get('last_price', 22638.15)
+            nifty_ltp = index_quote.get('last_price', 22677.00)
             ohlc = index_quote.get('ohlc', {})
             close = ohlc.get('close', 0) or index_quote.get('prev_close_price', nifty_ltp)
-            nifty_net_change = round(index_quote.get('net_change', -142.10), 2)
-            nifty_pct_change = round(index_quote.get('net_change_percentage', -0.62), 2)
+            nifty_net_change = round(index_quote.get('net_change', nifty_ltp - close if close else -103.25), 2)
+            nifty_pct_change = round(index_quote.get('net_change_percentage', ((nifty_net_change/close)*100) if close else -0.45), 2)
         else:
-            nifty_ltp = 22638.15
-            nifty_net_change = -142.10
-            nifty_pct_change = -0.62
+            nifty_ltp = 22677.00
+            nifty_net_change = -103.25
+            nifty_pct_change = -0.45
 
     total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
     gainer_pct_width = int((gainers_count / total_stocks) * 100) if total_stocks > 0 else 50
@@ -268,7 +276,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v15")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v16")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
