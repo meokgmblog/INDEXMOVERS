@@ -104,8 +104,7 @@ def fetch_upstox_market_data(keys):
                 if data:
                     combined.update(data)
                     success_count += 1
-        except Exception as e:
-            print(f"API fetch error: {e}")
+        except Exception:
             pass
     return combined if success_count > 0 else {}
 
@@ -113,19 +112,45 @@ def fetch_upstox_market_data(keys):
 @st.fragment(run_every=10)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
-    # Comprehensive list of index key formats used across Upstox API versions
     index_keys = [
         "NSE_INDEX|Nifty 50", 
         "NSE_INDEX:Nifty 50", 
         "NSE_INDEX|NIFTY 50", 
         "NSE_INDEX:NIFTY 50",
-        "NSE_INDEX|Nifty 50 Index",
-        "NSE_INDEX|Nifty50"
+        "NSE_INDEX|Nifty 50 Index"
     ]
     keys_list.extend(index_keys)
 
     api_data = fetch_upstox_market_data(keys_list)
     use_fallback = len(api_data) == 0
+
+    # 1. Extract Nifty Index Quote first so we have the accurate live Nifty LTP
+    index_quote = None
+    for ik in index_keys:
+        variants = [ik, ik.replace('|', ':'), ik.replace(':', '|')]
+        for v in variants:
+            if api_data and v in api_data:
+                index_quote = api_data[v]
+                break
+        if index_quote:
+            break
+
+    if not index_quote and api_data:
+        for k, val in api_data.items():
+            if 'NIFTY' in k.upper():
+                index_quote = val
+                break
+
+    if index_quote and isinstance(index_quote, dict):
+        nifty_ltp = index_quote.get('last_price', 22677.00)
+        ohlc = index_quote.get('ohlc', {})
+        close = ohlc.get('close', 0) or index_quote.get('prev_close_price', nifty_ltp)
+        nifty_net_change = round(index_quote.get('net_change', nifty_ltp - close if close else -103.25), 2)
+        nifty_pct_change = round(index_quote.get('net_change_percentage', (nifty_net_change/close)*100 if close else -0.45), 2)
+    else:
+        nifty_ltp = 22677.00
+        nifty_net_change = -103.25
+        nifty_pct_change = -0.45
 
     processed_stocks = []
     gainers_count = 0
@@ -136,17 +161,14 @@ def render_live_dashboard():
         for sym, meta in STOCK_META.items():
             weight = meta["weight"]
             pct_change = round(random.uniform(-2.2, 1.8), 2)
-            pts_impact = round((weight * pct_change) / 10, 2)
+            # Correct index point contribution formula: (Nifty_LTP * weight * pct_change) / 10000
+            pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
             
             if pts_impact > 0:
                 gainers_count += 1
             elif pts_impact < 0:
                 losers_count += 1
             processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
-        
-        nifty_ltp = 22677.00
-        nifty_net_change = -103.25
-        nifty_pct_change = -0.45
     else:
         for sym, meta in STOCK_META.items():
             item_key = meta["key"]
@@ -183,7 +205,8 @@ def render_live_dashboard():
 
                 if close and ltp and close > 0:
                     pct_change = round(((ltp - close) / close) * 100, 2)
-                    pts_impact = round((weight * pct_change) / 10, 2)
+                    # Correct index point contribution formula based on Nifty LTP & Weight
+                    pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
             
             if pts_impact > 0:
                 gainers_count += 1
@@ -191,37 +214,6 @@ def render_live_dashboard():
                 losers_count += 1
             
             processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
-
-        # Nifty Index Quote Extraction supporting multiple key formats and fallbacks
-        index_quote = None
-        matched_ik = None
-        for ik in index_keys:
-            variants = [ik, ik.replace('|', ':'), ik.replace(':', '|')]
-            for v in variants:
-                if api_data and v in api_data:
-                    index_quote = api_data[v]
-                    matched_ik = v
-                    break
-            if index_quote:
-                break
-
-        # If not found directly, scan all keys in response for Nifty
-        if not index_quote and api_data:
-            for k, val in api_data.items():
-                if 'NIFTY' in k.upper():
-                    index_quote = val
-                    break
-
-        if index_quote and isinstance(index_quote, dict):
-            nifty_ltp = index_quote.get('last_price', 22677.00)
-            ohlc = index_quote.get('ohlc', {})
-            close = ohlc.get('close', 0) or index_quote.get('prev_close_price', nifty_ltp)
-            nifty_net_change = round(index_quote.get('net_change', nifty_ltp - close if close else -103.25), 2)
-            nifty_pct_change = round(index_quote.get('net_change_percentage', (nifty_net_change/close)*100 if close else -0.45), 2)
-        else:
-            nifty_ltp = 22677.00
-            nifty_net_change = -103.25
-            nifty_pct_change = -0.45
 
     total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
     gainer_pct_width = int((gainers_count / total_stocks) * 100) if total_stocks > 0 else 50
@@ -284,7 +276,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v16")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v17")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
@@ -310,7 +302,7 @@ def render_live_dashboard():
                 with col_bar_g:
                     if i < len(gainers):
                         g = gainers[i]
-                        w_val = min(abs(g['impact']) * 12, 100)
+                        w_val = min(abs(g['impact']) * 4, 100)
                         st.markdown(f"""
                             <div style="display: flex; justify-content: flex-end; align-items: center; height: 18px;">
                                 <div style="background-color: #2ea043; width: {w_val}%; height: 5px; border-radius: 3px;"></div>
