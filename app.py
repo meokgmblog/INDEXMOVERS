@@ -27,7 +27,7 @@ RAW_DATA = [
     ("HDFCBANK", 9.89), ("ICICIBANK", 9.35), ("RELIANCE", 8.02), ("BHARTIARTL", 5.30),
     ("LT", 4.23), ("SBIN", 3.88), ("INFY", 3.68), ("AXISBANK", 3.28),
     ("KOTAKBANK", 2.84), ("M&M", 2.64), ("BAJFINANCE", 2.56), ("ITC", 2.33),
-    ("TCS", 2.19), ("ETERNAL", 2.15), ("TITAN", 1.89), ("SUNPHARMA", 1.85),
+    ("TCS", 2.19), ("LTIM", 2.15), ("TITAN", 1.89), ("SUNPHARMA", 1.85),
     ("HINDUNILVR", 1.61), ("MARUTI", 1.53), ("NTPC", 1.41), ("TATASTEEL", 1.38),
     ("SHRIRAMFIN", 1.35), ("BEL", 1.34), ("HINDALCO", 1.33), ("HCLTECH", 1.29),
     ("ULTRACEMCO", 1.22), ("BAJAJ-AUTO", 1.22), ("GRASIM", 1.13), ("JSWSTEEL", 1.12),
@@ -35,7 +35,7 @@ RAW_DATA = [
     ("BAJAJFINSV", 1.04), ("EICHERMOT", 1.00), ("TECHM", 0.94), ("NESTLEIND", 0.94),
     ("COALINDIA", 0.87), ("TRENT", 0.86), ("ONGC", 0.83), ("APOLLOHOSP", 0.82),
     ("ADANIENT", 0.78), ("CIPLA", 0.73), ("SBILIFE", 0.71), ("JIOFIN", 0.70),
-    ("MAXHEALTH", 0.68), ("DRREDDY", 0.65), ("TATACONSUM", 0.61), ("TMPV", 0.59),
+    ("MAXHEALTH", 0.68), ("DRREDDY", 0.65), ("TATACONSUM", 0.61), ("TATAMOTORS", 0.59),
     ("HDFCLIFE", 0.53), ("WIPRO", 0.45)
 ]
 
@@ -49,19 +49,25 @@ def load_instrument_keys():
 STOCK_META = load_instrument_keys()
 
 def fetch_upstox_market_data(instrument_keys_list):
-    """Fetches live quotes from Upstox API v2"""
-    url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={','.join(instrument_keys_list)}"
+    """Fetches live quotes from Upstox API v2 in batches to avoid URL length issues"""
     headers = {
         'Accept': 'application/json',
         'Authorization': f'Bearer {UPSTOX_TOKEN}'
     }
-    try:
-        response = requests.get(url, headers=headers)
-        if response.status_code == 200:
-            return response.json().get('data', {})
-    except Exception as e:
-        pass
-    return {}
+    combined_data = {}
+    chunk_size = 25
+    for i in range(0, len(instrument_keys_list), chunk_size):
+        chunk = instrument_keys_list[i:i+chunk_size]
+        url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={','.join(chunk)}"
+        try:
+            response = requests.get(url, headers=headers)
+            if response.status_code == 200:
+                data = response.json().get('data', {})
+                if data:
+                    combined_data.update(data)
+        except Exception as e:
+            pass
+    return combined_data
 
 # --- SILENT AUTO-UPDATING FRAGMENT (Runs every 15 seconds seamlessly) ---
 @st.fragment(run_every=15)
@@ -82,10 +88,20 @@ def render_live_dashboard():
         
         pct_change = 0.0
         if api_data and item_key in api_data:
-            ohlc = api_data[item_key].get('ohlc', {})
-            close_price = ohlc.get('close', 100)
-            ltp = api_data[item_key].get('last_price', close_price)
-            pct_change = round(((ltp - close_price) / close_price) * 100, 2)
+            quote = api_data[item_key]
+            ltp = quote.get('last_price', 0)
+            ohlc = quote.get('ohlc', {})
+            close_price = ohlc.get('close', 0)
+            
+            if not close_price or close_price == 0:
+                net_change = quote.get('net_change', 0)
+                if net_change and ltp:
+                    close_price = ltp - net_change
+            
+            if close_price and close_price > 0 and ltp > 0:
+                pct_change = round(((ltp - close_price) / close_price) * 100, 2)
+            else:
+                pct_change = 0.0
         else:
             random.seed(hash(sym) + tick_seed)
             pct_change = round(random.uniform(-2.5, 2.5), 2)
