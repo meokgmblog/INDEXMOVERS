@@ -215,7 +215,6 @@ def render_live_dashboard():
                 pct_change = round(pct_chg, 2)
                 pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
                 
-                # FIX: Classify based on actual price change/percentage, aligning with terminal breadth
                 if pct_change > 0 or net_chg > 0:
                     is_gainer = True
             
@@ -287,14 +286,15 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v20")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v21")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
-        st.caption("All 50 stocks split between positive index contributors and negative detractors")
+        st.caption("Independent sorted lists matching exact market terminal layout")
 
-        gainers = sorted([s for s in processed_stocks if s['impact'] > 0], key=lambda x: x['impact'], reverse=True)
-        losers = sorted([s for s in processed_stocks if s['impact'] <= 0], key=lambda x: x['impact'])
+        # FIX: Sort Gainers descending by absolute impact, Losers ascending (most negative first) independently
+        gainers = sorted([s for s in processed_stocks if s['impact'] > 0], key=lambda x: abs(x['impact']), reverse=True)
+        losers = sorted([s for s in processed_stocks if s['impact'] <= 0], key=lambda x: abs(x['impact']), reverse=True)
         
         max_rows = max(len(gainers), len(losers)) if (len(gainers) > 0 or len(losers) > 0) else 1
         
