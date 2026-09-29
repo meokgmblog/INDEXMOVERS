@@ -62,34 +62,34 @@ def fetch_upstox_market_data(instrument_keys_list):
         pass
     return {}
 
-# --- HEADER SECTION (Static outer frame) ---
-col_top1, col_top2 = st.columns([3, 2])
-with col_top1:
-    st.markdown("### NIFTY 50 Index Dashboard")
-    st.markdown("#### 22,733.10 <span style='color:#f85149; font-size:15px;'>▼ -47.15 pts (-0.21%)</span>", unsafe_allow_html=True)
-
-with col_top2:
-    st.markdown("**Gainers / Losers Breadth**")
-    st.markdown("""
-        <div style="background-color: #30363d; border-radius: 6px; height: 12px; width: 100%; display: flex; margin-top: 8px;">
-            <div style="background-color: #2ea043; width: 42%; border-top-left-radius: 6px; border-bottom-left-radius: 6px;"></div>
-            <div style="background-color: #f85149; width: 58%; border-top-right-radius: 6px; border-bottom-right-radius: 6px;"></div>
-        </div>
-        <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px;">
-            <span style="color: #2ea043; font-weight: bold;">● Gainer : 21</span>
-            <span style="color: #f85149; font-weight: bold;">Losers : 28 ●</span>
-        </div>
-    """, unsafe_allow_html=True)
-
-st.markdown("---")
-
-# --- SILENT AUTO-UPDATING FRAGMENT (Updates every 15 seconds without full-page reload) ---
+# --- SILENT AUTO-UPDATING FRAGMENT (Runs every 15 seconds seamlessly) ---
 @st.fragment(run_every=15)
 def render_live_dashboard():
+    # Fetch Nifty 50 Index quote + all constituent stock quotes simultaneously
     keys_list = [meta["key"] for meta in STOCK_META.values()]
+    keys_list.append("NSE_INDEX|Nifty 50")
+    
     api_data = fetch_upstox_market_data(keys_list)
 
+    # 1. Parse Nifty 50 Index Live Values
+    nifty_ltp = 22733.10
+    nifty_net_change = -47.15
+    nifty_pct_change = -0.21
+    
+    if api_data and "NSE_INDEX|Nifty 50" in api_data:
+        nifty_quote = api_data["NSE_INDEX|Nifty 50"]
+        nifty_ltp = nifty_quote.get('last_price', nifty_ltp)
+        ohlc = nifty_quote.get('ohlc', {})
+        close_price = ohlc.get('close', nifty_ltp)
+        nifty_net_change = round(nifty_ltp - close_price, 2)
+        if close_price > 0:
+            nifty_pct_change = round((nifty_net_change / close_price) * 100, 2)
+
+    # 2. Parse Constituent Stocks Live Values
     processed_stocks = []
+    gainers_count = 0
+    losers_count = 0
+
     for sym, meta in STOCK_META.items():
         item_key = meta["key"]
         weight = meta["weight"]
@@ -102,9 +102,14 @@ def render_live_dashboard():
             pct_change = round(((ltp - close_price) / close_price) * 100, 2)
         else:
             import random
-            random.seed(hash(sym) + pd.Timestamp.now().second) # Varies gently during silent polls
+            random.seed(hash(sym) + pd.Timestamp.now().second)
             pct_change = round(random.uniform(-2.2, 2.2), 2)
             
+        if pct_change > 0:
+            gainers_count += 1
+        else:
+            losers_count += 1
+
         pts_impact = round((weight * pct_change) / 10, 2)
         
         processed_stocks.append({
@@ -114,11 +119,38 @@ def render_live_dashboard():
             "impact": pts_impact
         })
 
+    total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
+    gainer_pct_width = int((gainers_count / total_stocks) * 100)
+    loser_pct_width = 100 - gainer_pct_width
+
+    # --- HEADER SECTION (Inside fragment so it updates live) ---
+    col_top1, col_top2 = st.columns([3, 2])
+    with col_top1:
+        st.markdown("### NIFTY 50 Index Dashboard")
+        color_style = "#2ea043" if nifty_net_change >= 0 else "#f85149"
+        arrow = "▲" if nifty_net_change >= 0 else "▼"
+        st.markdown(f"#### {nifty_ltp:,.2f} <span style='color:{color_style}; font-size:15px;'>{arrow} {nifty_net_change:+.2f} pts ({nifty_pct_change:+.2f}%)</span>", unsafe_allow_html=True)
+
+    with col_top2:
+        st.markdown("**Gainers / Losers Breadth**")
+        st.markdown(f"""
+            <div style="background-color: #30363d; border-radius: 6px; height: 12px; width: 100%; display: flex; margin-top: 8px;">
+                <div style="background-color: #2ea043; width: {gainer_pct_width}%; border-top-left-radius: 6px; border-bottom-left-radius: 6px;"></div>
+                <div style="background-color: #f85149; width: {loser_pct_width}%; border-top-right-radius: 6px; border-bottom-right-radius: 6px;"></div>
+            </div>
+            <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px;">
+                <span style="color: #2ea043; font-weight: bold;">● Gainer : {gainers_count}</span>
+                <span style="color: #f85149; font-weight: bold;">Losers : {losers_count} ●</span>
+            </div>
+        """, unsafe_allow_html=True)
+
+    st.markdown("---")
+
     # --- MAIN LAYOUT: TWO COLUMNS ---
     left_col, right_col = st.columns(2)
 
     # ==========================================
-    # LEFT COLUMN: Donut Chart with Center Nifty Info[cite: 3]
+    # LEFT COLUMN: Donut Chart with Center Nifty Info
     # ==========================================
     with left_col:
         st.markdown("#### 🍩 Index Point Contributors (All 50 Movers)")
@@ -137,7 +169,8 @@ def render_live_dashboard():
             hoverinfo='label+value+percent'
         )])
 
-        # Center annotation displaying Nifty 50 points & change percentage
+        # Center annotation displaying live Nifty 50 points & change percentage
+        center_color = "#2ea043" if nifty_net_change >= 0 else "#f85149"
         fig.update_layout(
             showlegend=False,
             paper_bgcolor='rgba(0,0,0,0)',
@@ -145,7 +178,7 @@ def render_live_dashboard():
             font=dict(color='white'),
             margin=dict(t=10, b=10, l=10, r=10),
             annotations=[dict(
-                text='<b>NIFTY 50</b><br><span style="color:#f85149; font-size:14px;">-47.15 pts</span><br><span style="color:#f85149; font-size:12px;">(-0.21%)</span>',
+                text=f'<b>NIFTY 50</b><br><span style="color:{center_color}; font-size:14px;">{nifty_net_change:+.2f} pts</span><br><span style="color:{center_color}; font-size:12px;">({nifty_pct_change:+.2f}%)</span>',
                 x=0.5, y=0.5, font_size=13, showarrow=False, font_color='white'
             )]
         )
@@ -153,7 +186,7 @@ def render_live_dashboard():
         st.plotly_chart(fig, use_container_width=True, key="donut_chart_live")
 
     # ==========================================
-    # RIGHT COLUMN: Complete Dual Progress List (All 50 Stocks)[cite: 3]
+    # RIGHT COLUMN: Complete Dual Progress List (All 50 Stocks)
     # ==========================================
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
@@ -209,5 +242,5 @@ def render_live_dashboard():
 
     st.caption(f"⚡ Silent background refresh active (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
 
-# Call the silent auto-updating fragment
+# Execute the live fragment
 render_live_dashboard()
