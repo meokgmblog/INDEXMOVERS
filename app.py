@@ -73,6 +73,10 @@ def fetch_upstox_market_data(instrument_keys_list):
 @st.fragment(run_every=15)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
+    # Include Nifty 50 Index key directly to fetch exact live index value
+    index_key = "NSE_INDEX|Nifty 50"
+    keys_list.append(index_key)
+
     api_data = fetch_upstox_market_data(keys_list)
 
     processed_stocks = []
@@ -125,11 +129,27 @@ def render_live_dashboard():
     gainer_pct_width = int((gainers_count / total_stocks) * 100)
     loser_pct_width = 100 - gainer_pct_width
 
-    # Dynamically derive Nifty 50 live index values directly from constituent stock movements
-    base_nifty_val = 22708.10  # Baseline matched to live market
+    # Fetch Nifty 50 Live Index Data directly from API response if available
+    nifty_ltp = 22708.10
     nifty_net_change = round(total_index_points_change, 2)
-    nifty_ltp = round(base_nifty_val + nifty_net_change, 2)
-    nifty_pct_change = round((nifty_net_change / base_nifty_val) * 100, 2)
+    nifty_pct_change = 0.0
+
+    if api_data and index_key in api_data:
+        nifty_quote = api_data[index_key]
+        nifty_ltp = nifty_quote.get('last_price', nifty_ltp)
+        nifty_ohlc = nifty_quote.get('ohlc', {})
+        nifty_close = nifty_ohlc.get('close', 0)
+        if not nifty_close or nifty_close == 0:
+            nifty_net_change = nifty_quote.get('net_change', nifty_net_change)
+            nifty_close = nifty_ltp - nifty_net_change
+        else:
+            nifty_net_change = round(nifty_ltp - nifty_close, 2)
+        
+        if nifty_close > 0:
+            nifty_pct_change = round((nifty_net_change / nifty_close) * 100, 2)
+    else:
+        nifty_ltp = round(nifty_ltp + nifty_net_change, 2)
+        nifty_pct_change = round((nifty_net_change / 22708.10) * 100, 2)
 
     # --- HEADER SECTION (Inside fragment so it updates live) ---
     col_top1, col_top2 = st.columns([3, 2])
@@ -177,7 +197,6 @@ def render_live_dashboard():
             hoverinfo='label+value+percent'
         )])
 
-        # Center annotation displaying live Nifty 50 points & change percentage
         center_color = "#2ea043" if nifty_net_change >= 0 else "#f85149"
         fig.update_layout(
             showlegend=False,
