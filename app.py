@@ -20,7 +20,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- UPSTOX API CONFIGURATION (NEW TOKEN) ---
+# --- UPSTOX API CONFIGURATION ---
 UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiI2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
 
 # --- NIFTY 50 CONSTITUENTS & WEIGHTS ---
@@ -69,7 +69,13 @@ def fetch_upstox_market_data(keys):
 @st.fragment(run_every=15)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
-    index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50", "NSE_INDEX|NIFTY 50", "NSE_INDEX:NIFTY 50"]
+    
+    # Comprehensive list of index keys for Nifty 50 to handle API variations
+    index_keys = [
+        "NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50", 
+        "NSE_INDEX|NIFTY 50", "NSE_INDEX:NIFTY 50",
+        "NSE_INDEX|Nifty50", "NSE_INDEX:Nifty50"
+    ]
     keys_list.extend(index_keys)
 
     api_data = fetch_upstox_market_data(keys_list)
@@ -79,24 +85,6 @@ def render_live_dashboard():
     gainers_count = 0
     losers_count = 0
 
-    reference_gainers_points = {
-        "BHARTIARTL": 7.48, "DRREDDY": 2.94, "ADANIPORTS": 2.00, "ITC": 1.41,
-        "COALINDIA": 1.09, "ONGC": 1.00, "SHRIRAMFIN": 0.85, "ADANIENT": 0.82,
-        "KOTAKBANK": 0.73, "BEL": 0.52, "CIPLA": 0.35, "SUNPHARMA": 0.32,
-        "ASIANPAINT": 0.26, "EICHERMOT": 0.25, "LT": 0.23, "TECHM": 0.15, "POWERGRID": 0.10
-    }
-    
-    reference_losers_points = {
-        "HDFCBANK": -25.23, "INFY": -11.78, "ICICIBANK": -11.28, "JIOFIN": -9.91,
-        "BAJFINANCE": -9.78, "AXISBANK": -9.63, "RELIANCE": -8.39, "TITAN": -8.22,
-        "HINDUNILVR": -4.01, "SBIN": -3.58, "HCLTECH": -3.53, "BAJAJ-AUTO": -3.28,
-        "M&M": -2.61, "TCS": -2.51, "HDFCLIFE": -2.41, "WIPRO": -2.10, "TATASTEEL": -1.95,
-        "BAJAJFINSV": -1.80, "HINDALCO": -1.75, "SBILIFE": -1.60, "GRASIM": -1.45,
-        "ULTRACEMCO": -1.30, "MARUTI": -1.20, "NTPC": -1.10, "JSWSTEEL": -1.00,
-        "INDIGO": -0.90, "NESTLEIND": -0.80, "APOLLOHOSP": -0.70, "MAXHEALTH": -0.60,
-        "TATACONSUM": -0.50, "TATAMOTORS": -0.40, "TRENT": -0.30
-    }
-
     if has_real_api_data:
         for sym, meta in STOCK_META.items():
             item_key = meta["key"]
@@ -104,9 +92,14 @@ def render_live_dashboard():
             pts_impact = 0.0
             pct_change = 0.0
             
-            # Robust key matching supporting both colon ':' and pipe '|' from Upstox API responses
             quote = None
-            possible_keys = [item_key, item_key.replace('|', ':'), item_key.replace(':', '|'), f"NSE_EQ:{sym}", f"NSE_EQ|{sym}"]
+            possible_keys = [
+                item_key, 
+                item_key.replace('|', ':'), 
+                item_key.replace(':', '|'), 
+                f"NSE_EQ:{sym}", 
+                f"NSE_EQ|{sym}"
+            ]
             for k in possible_keys:
                 if api_data and k in api_data:
                     quote = api_data[k]
@@ -121,38 +114,38 @@ def render_live_dashboard():
                 ltp = quote.get('last_price', 0)
                 ohlc = quote.get('ohlc', {})
                 close = ohlc.get('close', 0) if ohlc else 0
-                if not close:
-                    net_change = quote.get('net_change', 0)
-                    if ltp and net_change:
-                        close = ltp - net_change
+                net_change = quote.get('net_change', 0)
+                
+                if not close and ltp and net_change:
+                    close = ltp - net_change
                 if not close:
                     close = ltp
 
                 if close and ltp and close > 0:
                     pct_change = round(((ltp - close) / close) * 100, 2)
                     pts_impact = round((weight * pct_change) / 10, 2)
+                elif net_change and close and close > 0:
+                    pct_change = round((net_change / close) * 100, 2)
+                    pts_impact = round((weight * pct_change) / 10, 2)
             
-            if pts_impact >= 0:
+            if pts_impact > 0:
                 gainers_count += 1
-            else:
+            elif pts_impact < 0:
                 losers_count += 1
+            else:
+                # Treat zero impact as neutral (defaulting to gainer count or split if desired, here counted as gainer if >= 0)
+                gainers_count += 1
                 
             processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
     else:
-        # Fallback simulation if API response is empty/restricted
-        gainers_count = len(reference_gainers_points)
+        # Fallback simulation if API response is restricted/empty
         random.seed(int(time.time() // 10))
-        for sym in STOCK_META.keys():
-            if sym in reference_gainers_points:
-                imp = round(reference_gainers_points[sym] + random.uniform(-0.04, 0.04), 2)
-                pct = round((imp * 10) / STOCK_META[sym]["weight"], 2)
-            elif sym in reference_losers_points:
-                imp = round(reference_losers_points[sym] + random.uniform(-0.04, 0.04), 2)
-                pct = round((imp * 10) / STOCK_META[sym]["weight"], 2)
-                losers_count += 1
+        for sym, meta in STOCK_META.items():
+            imp = round(random.uniform(-1.5, 1.5), 2)
+            pct = round((imp * 10) / meta["weight"], 2)
+            if imp >= 0:
+                gainers_count += 1
             else:
-                imp = -0.25
-                pct = -0.50
                 losers_count += 1
             processed_stocks.append({"symbol": sym, "impact": imp, "pct": pct})
 
@@ -178,12 +171,16 @@ def render_live_dashboard():
         nifty_ltp = index_quote.get('last_price', 0)
         ohlc = index_quote.get('ohlc', {})
         close = ohlc.get('close', 0) or index_quote.get('prev_close_price', base_close)
+        net_chg = index_quote.get('net_change', 0)
+        
+        if not nifty_ltp and close and net_chg:
+            nifty_ltp = close + net_chg
         if not nifty_ltp:
-            net_chg = index_quote.get('net_change', 0)
-            nifty_ltp = close + net_chg if close else base_close
+            nifty_ltp = base_close
         if not close:
-            close = nifty_ltp
-        nifty_net_change = round(nifty_ltp - close, 2)
+            close = nifty_ltp - net_chg if net_chg else base_close
+            
+        nifty_net_change = round(nifty_ltp - close, 2) if (nifty_ltp and close) else round(net_chg, 2)
         nifty_pct_change = round((nifty_net_change / close) * 100, 2) if close else 0.0
     else:
         stock_sum_impact = sum(s['impact'] for s in processed_stocks)
@@ -201,14 +198,14 @@ def render_live_dashboard():
         st.markdown(f"#### {nifty_ltp:,.2f} <span style='color:{color_style}; font-size:15px;'>{arrow} {direction_text} {abs(nifty_net_change):.2f} PTS ({nifty_pct_change:+.2f}%)</span>", unsafe_allow_html=True)
 
     with col_top2:
-        st.markdown("**Gainers / Losers**")
+        st.markdown("**Gainers / Losers Breadth**")
         st.markdown(f"""
             <div style="background-color: #30363d; border-radius: 6px; height: 12px; width: 100%; display: flex; margin-top: 8px;">
                 <div style="background-color: #2ea043; width: {gainer_pct_width}%; border-top-left-radius: 6px; border-bottom-left-radius: 6px;"></div>
                 <div style="background-color: #f85149; width: {loser_pct_width}%; border-top-right-radius: 6px; border-bottom-right-radius: 6px;"></div>
             </div>
             <div style="display: flex; justify-content: space-between; font-size: 13px; margin-top: 6px;">
-                <span style="color: #2ea043; font-weight: bold;">● Gainer : {gainers_count}</span>
+                <span style="color: #2ea043; font-weight: bold;">● Gainers : {gainers_count}</span>
                 <span style="color: #f85149; font-weight: bold;">Losers : {losers_count} ●</span>
             </div>
         """, unsafe_allow_html=True)
@@ -248,14 +245,14 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v9")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v10")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
         st.caption("All 50 stocks split between positive index contributors and negative detractors")
 
-        gainers = sorted([s for s in processed_stocks if s['impact'] > 0], key=lambda x: x['impact'], reverse=True)
-        losers = sorted([s for s in processed_stocks if s['impact'] <= 0], key=lambda x: x['impact'])
+        gainers = sorted([s for s in processed_stocks if s['impact'] >= 0], key=lambda x: x['impact'], reverse=True)
+        losers = sorted([s for s in processed_stocks if s['impact'] < 0], key=lambda x: x['impact'])
         
         max_rows = max(len(gainers), len(losers)) if (len(gainers) > 0 or len(losers) > 0) else 1
         
