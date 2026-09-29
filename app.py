@@ -90,7 +90,6 @@ def fetch_upstox_market_data(keys):
     combined = {}
     ts = int(time.time())
     
-    # Let's test fetching all keys in one or smaller chunks and track status
     for i in range(0, len(keys), 15):
         chunk = keys[i:i+15]
         encoded_keys = urllib.parse.quote(','.join(chunk))
@@ -103,7 +102,6 @@ def fetch_upstox_market_data(keys):
                 if data:
                     combined.update(data)
             else:
-                # Store status code as debug info if needed
                 combined[f"_STATUS_{res.status_code}"] = res.text
         except Exception as e:
             combined["_ERROR"] = str(e)
@@ -270,7 +268,7 @@ def render_live_dashboard():
         st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v14")
 
     with right_col:
-        st.markdown("#### 📊 Comparative Movers List (Complete 50)"))
+        st.markdown("#### 📊 Comparative Movers List (Complete 50)")
         st.caption("All 50 stocks split between positive index contributors and negative detractors")
 
         gainers = sorted([s for s in processed_stocks if s['impact'] > 0], key=lambda x: x['impact'], reverse=True)
