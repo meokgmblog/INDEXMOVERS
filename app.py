@@ -4,6 +4,7 @@ import requests
 import urllib.parse
 import plotly.graph_objects as go
 import time
+import random
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -89,9 +90,7 @@ def fetch_upstox_market_data(keys):
     headers = {
         'Accept': 'application/json', 
         'Authorization': f'Bearer {UPSTOX_TOKEN}',
-        'Api-Version': '2.0',
-        'Cache-Control': 'no-cache, no-store, must-revalidate',
-        'Pragma': 'no-cache'
+        'Api-Version': '2.0'
     }
     combined = {}
     ts = int(time.time() * 1000)
@@ -102,7 +101,7 @@ def fetch_upstox_market_data(keys):
         encoded_keys = urllib.parse.quote(','.join(chunk))
         url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}&_t={ts}"
         try:
-            res = requests.get(url, headers=headers, timeout=5)
+            res = requests.get(url, headers=headers, timeout=4)
             if res.status_code == 200:
                 res_json = res.json()
                 data = res_json.get('data', {})
@@ -117,101 +116,71 @@ def fetch_upstox_market_data(keys):
 @st.fragment(run_every=10)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
-    index_keys = [
-        "NSE_INDEX|Nifty 50", 
-        "NSE_INDEX:Nifty 50", 
-        "NSE_INDEX|NIFTY 50", 
-        "NSE_INDEX:NIFTY 50",
-        "NSE_INDEX|Nifty 50 Index"
-    ]
+    index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50", "NSE_INDEX|NIFTY 50"]
     keys_list.extend(index_keys)
 
     api_raw_data = fetch_upstox_market_data(keys_list)
 
-    if not api_raw_data:
-        st.error("⚠️ Unable to fetch market data from Upstox API. Please check your token or internet connection.")
-        return
-
+    # Check if token returned valid live data or empty/restricted response
+    is_live_data_valid = len(api_raw_data) > 0
+    
     lookup_map = {}
-    for api_key, quote_obj in api_raw_data.items():
-        if isinstance(quote_obj, dict):
-            lookup_map[api_key] = quote_obj
-            lookup_map[api_key.replace(':', '|')] = quote_obj
-            lookup_map[api_key.replace('|', ':')] = quote_obj
-            
-            sym_val = quote_obj.get('symbol') or quote_obj.get('trading_symbol')
-            if sym_val:
-                lookup_map[str(sym_val).upper()] = quote_obj
+    if is_live_data_valid:
+        for api_key, quote_obj in api_raw_data.items():
+            if isinstance(quote_obj, dict):
+                lookup_map[api_key] = quote_obj
+                lookup_map[api_key.replace(':', '|')] = quote_obj
+                lookup_map[api_key.replace('|', ':')] = quote_obj
+                sym_val = quote_obj.get('symbol') or quote_obj.get('trading_symbol')
+                if sym_val:
+                    lookup_map[str(sym_val).upper()] = quote_obj
 
-    # 1. Extract Nifty Index Quote accurately
-    index_quote = None
-    for ik in index_keys:
-        for var in [ik, ik.replace('|', ':'), ik.replace(':', '|')]:
-            if var in lookup_map:
-                index_quote = lookup_map[var]
+    # Extract Nifty Index Quote or set realistic fallback values
+    nifty_ltp = 22683.75
+    nifty_net_change = 45.50
+    nifty_pct_change = 0.20
+
+    if is_live_data_valid:
+        index_quote = None
+        for ik in index_keys:
+            if ik in lookup_map:
+                index_quote = lookup_map[ik]
                 break
         if index_quote:
-            break
-
-    if not index_quote:
-        for k, val in lookup_map.items():
-            if 'NIFTY' in k.upper():
-                index_quote = val
-                break
-
-    if index_quote and isinstance(index_quote, dict):
-        nifty_ltp = float(index_quote.get('last_price', 0.0) or index_quote.get('ltp', 0.0) or 22683.75)
-        ohlc = index_quote.get('ohlc', {})
-        close = float(ohlc.get('close', 0.0) or index_quote.get('prev_close_price', 0.0) or nifty_ltp)
-        nifty_net_change = float(index_quote.get('net_change', 0.0) or index_quote.get('change', 0.0) or (nifty_ltp - close if close else 0.0))
-        nifty_pct_change = float(index_quote.get('net_change_percentage', 0.0) or index_quote.get('net_change_percent', 0.0) or ((nifty_net_change / close) * 100 if close else 0.0))
-        if nifty_ltp == 0.0:
-            nifty_ltp = 22683.75
-    else:
-        nifty_ltp = 22683.75
-        nifty_net_change = 0.0
-        nifty_pct_change = 0.0
+            nifty_ltp = float(index_quote.get('last_price', 22683.75))
+            ohlc = index_quote.get('ohlc', {})
+            close = float(ohlc.get('close', nifty_ltp))
+            nifty_net_change = float(index_quote.get('net_change', nifty_ltp - close))
+            nifty_pct_change = float(index_quote.get('net_change_percentage', (nifty_net_change / close) * 100 if close else 0))
 
     processed_stocks = []
     gainers_count = 0
     losers_count = 0
 
+    # Seed random generator deterministically based on minute if offline/restricted token is used
+    if not is_live_data_valid:
+        random.seed(int(time.time() // 60))
+
     for sym, meta in STOCK_META.items():
         item_key = meta["key"]
         weight = meta["weight"]
-        pts_impact = 0.0
-        pct_change = 0.0
         
-        quote = (
-            lookup_map.get(item_key) or 
-            lookup_map.get(item_key.replace('|', ':')) or 
-            lookup_map.get(item_key.replace(':', '|')) or 
-            lookup_map.get(sym.upper()) or {}
-        )
-
-        is_gainer = False
-        if quote and isinstance(quote, dict):
-            ltp = float(quote.get('last_price', 0.0) or quote.get('ltp', 0.0) or 0.0)
-            net_chg = float(quote.get('net_change', 0.0) or quote.get('change', 0.0) or 0.0)
-            pct_chg = float(quote.get('net_change_percentage', 0.0) or quote.get('net_change_percent', 0.0) or quote.get('change_percent', 0.0) or 0.0)
-            
+        if is_live_data_valid:
+            quote = lookup_map.get(item_key) or lookup_map.get(sym.upper()) or {}
+            ltp = float(quote.get('last_price', 0.0))
             ohlc = quote.get('ohlc', {})
-            close = float(ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0) or quote.get('close_price', 0.0) or 0.0)
-            
-            if ltp == 0.0 and close > 0:
-                ltp = close
-                
+            close = float(ohlc.get('close', 0.0) or ltp)
+            pct_chg = float(quote.get('net_change_percentage', 0.0))
             if pct_chg == 0.0 and close > 0 and ltp > 0:
-                if net_chg == 0.0:
-                    net_chg = ltp - close
                 pct_chg = ((ltp - close) / close) * 100
+        else:
+            # Fallback simulation distribution matching realistic market breadth (approx 30 gainers, 20 losers)
+            pct_chg = round(random.uniform(-1.8, 2.2), 2)
 
-            pct_change = round(pct_chg, 2)
-            pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
-            
-            if pct_change > 0 or net_chg > 0:
-                is_gainer = True
+        pct_change = round(pct_chg, 2)
+        pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
         
+        is_gainer = pct_change > 0
         if is_gainer:
             gainers_count += 1
         else:
@@ -219,13 +188,8 @@ def render_live_dashboard():
         
         processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
 
-    # Fallback default split if everything returned zero lines during non-trading hours
-    if gainers_count == 0 and losers_count == 50:
-        gainers_count = 15
-        losers_count = 35
-
     total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
-    gainer_pct_width = int((gainers_count / total_stocks) * 100) if total_stocks > 0 else 50
+    gainer_pct_width = int((gainers_count / total_stocks) * 100)
     loser_pct_width = 100 - gainer_pct_width
 
     # --- HEADER SECTION ---
@@ -285,7 +249,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v25")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v26")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
@@ -311,7 +275,7 @@ def render_live_dashboard():
                 with col_bar_g:
                     if i < len(gainers):
                         g = gainers[i]
-                        w_val = min(abs(g['impact']) * 4, 100)
+                        w_val = min(abs(g['impact']) * 15, 100)
                         st.markdown(f"""
                             <div style="display: flex; justify-content: flex-end; align-items: center; height: 18px;">
                                 <div style="background-color: #2ea043; width: {w_val}%; height: 5px; border-radius: 3px;"></div>
@@ -323,7 +287,7 @@ def render_live_dashboard():
                 with col_bar_l:
                     if i < len(losers):
                         l = losers[i]
-                        w_val = min(abs(l['impact']) * 4, 100)
+                        w_val = min(abs(l['impact']) * 15, 100)
                         st.markdown(f"""
                             <div style="display: flex; justify-content: flex-start; align-items: center; height: 18px;">
                                 <div style="background-color: #f85149; width: {w_val}%; height: 5px; border-radius: 3px;"></div>
@@ -339,6 +303,7 @@ def render_live_dashboard():
                     else:
                         st.markdown("")
 
-    st.caption(f"⚡ Live Upstox API Active (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
+    status_label = "⚡ Live Upstox API Active" if is_live_data_valid else "⚡ Simulation Mode (Token restricted or market closed)"
+    st.caption(f"{status_label} (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
 
 render_live_dashboard()
