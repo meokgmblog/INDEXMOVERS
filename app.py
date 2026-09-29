@@ -2,8 +2,6 @@ import streamlit as st
 import pandas as pd
 import requests
 import plotly.graph_objects as go
-import random
-import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -20,7 +18,7 @@ st.markdown("""
     </style>
 """, unsafe_allow_html=True)
 
-# --- UPSTOX API CONFIGURATION ---
+# --- UPSTOX API CONFIGURATION (NEW TOKEN) ---
 UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiI2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
 
 # --- NIFTY 50 CONSTITUENTS & WEIGHTS ---
@@ -69,82 +67,65 @@ def fetch_upstox_market_data(keys):
 @st.fragment(run_every=15)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
-    keys_list.append("NSE_INDEX|Nifty 50")
-    keys_list.append("NSE_INDEX:Nifty 50")
+    index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50"]
+    keys_list.extend(index_keys)
 
     api_data = fetch_upstox_market_data(keys_list)
-    has_real_api_data = bool(api_data and len(api_data) > 5)
 
     processed_stocks = []
     gainers_count = 0
     losers_count = 0
 
-    if has_real_api_data:
-        for sym, meta in STOCK_META.items():
-            item_key = meta["key"]
-            weight = meta["weight"]
-            pts_impact = 0.0
-            pct_change = 0.0
-            if item_key in api_data:
-                quote = api_data[item_key]
-                ltp = quote.get('last_price', 0)
-                ohlc = quote.get('ohlc', {})
-                close = ohlc.get('close', 0)
-                if not close:
-                    net_change = quote.get('net_change', 0)
-                    close = ltp - net_change if ltp and net_change else 0
-                if close and ltp:
-                    pct_change = round(((ltp - close) / close) * 100, 2)
-                    pts_impact = round((weight * pct_change) / 10, 2)
+    # Process live stock data from Upstox API
+    for sym, meta in STOCK_META.items():
+        item_key = meta["key"]
+        weight = meta["weight"]
+        pts_impact = 0.0
+        pct_change = 0.0
+        
+        if api_data and item_key in api_data:
+            quote = api_data[item_key]
+            ltp = quote.get('last_price', 0)
+            ohlc = quote.get('ohlc', {})
+            close = ohlc.get('close', 0)
+            if not close:
+                net_change = quote.get('net_change', 0)
+                close = ltp - net_change if ltp and net_change else 0
+            if close and ltp:
+                pct_change = round(((ltp - close) / close) * 100, 2)
+                pts_impact = round((weight * pct_change) / 10, 2)
+        
+        if pts_impact >= 0:
+            gainers_count += 1
+        else:
+            losers_count += 1
             
-            if pts_impact >= 0:
-                gainers_count += 1
-            else:
-                losers_count += 1
-            processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
-    else:
-        # --- FULLY DYNAMIC SIMULATION FOR ALL 50 STOCKS (NO HARDCODED LISTS) ---
-        tick_seed = int(time.time() // 5)
-        random.seed(tick_seed)
-
-        for sym, meta in STOCK_META.items():
-            weight = meta["weight"]
-            # Randomly fluctuate each stock's impact based on its weight
-            raw_imp = random.uniform(-1.5, 1.2) * (weight / 5.0)
-            imp = round(raw_imp, 2)
-            pct = round((imp * 10) / weight, 2)
-            
-            if imp >= 0:
-                gainers_count += 1
-            else:
-                losers_count += 1
-            processed_stocks.append({"symbol": sym, "impact": imp, "pct": pct})
+        processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
 
     total_stocks = gainers_count + losers_count if (gainers_count + losers_count) > 0 else 50
     gainer_pct_width = int((gainers_count / total_stocks) * 100)
     loser_pct_width = 100 - gainer_pct_width
 
-    # --- FULLY DYNAMIC NIFTY 50 CALCULATION ---
-    base_close = 22780.75
+    # --- LIVE NIFTY 50 INDEX DATA COLLECTION ---
     index_quote = None
-    for k in ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50"]:
-        if api_data and k in api_data:
-            index_quote = api_data[k]
+    for ik in index_keys:
+        if api_data and ik in api_data:
+            index_quote = api_data[ik]
             break
 
     if index_quote:
         nifty_ltp = index_quote.get('last_price', 0)
         ohlc = index_quote.get('ohlc', {})
-        close = ohlc.get('close', 0) or index_quote.get('prev_close_price', base_close)
+        close = ohlc.get('close', 0) or index_quote.get('prev_close_price', nifty_ltp)
         if not nifty_ltp:
             net_chg = index_quote.get('net_change', 0)
             nifty_ltp = close + net_chg
         nifty_net_change = round(nifty_ltp - close, 2)
-        nifty_pct_change = round((nifty_net_change / close) * 100, 2)
+        nifty_pct_change = round((nifty_net_change / close) * 100, 2) if close else 0.0
     else:
-        # Dynamically derive Nifty points from the sum of all 50 live stock impacts
-        stock_sum_impact = sum(s['impact'] for s in processed_stocks)
-        nifty_net_change = round(stock_sum_impact, 2)
+        # Fallback calculation summing stock impacts if index quote is missing
+        base_close = 22780.75
+        nifty_net_change = round(sum(s['impact'] for s in processed_stocks), 2)
         nifty_ltp = round(base_close + nifty_net_change, 2)
         nifty_pct_change = round((nifty_net_change / base_close) * 100, 2)
 
@@ -214,7 +195,7 @@ def render_live_dashboard():
         gainers = sorted([s for s in processed_stocks if s['impact'] > 0], key=lambda x: x['impact'], reverse=True)
         losers = sorted([s for s in processed_stocks if s['impact'] <= 0], key=lambda x: x['impact'])
         
-        max_rows = max(len(gainers), len(losers))
+        max_rows = max(len(gainers), len(losers)) if (len(gainers) > 0 or len(losers) > 0) else 1
         
         container = st.container(height=520)
         with container:
@@ -259,6 +240,6 @@ def render_live_dashboard():
                     else:
                         st.markdown("")
 
-    st.caption(f"⚡ Live dynamic sync active (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
+    st.caption(f"⚡ Live Upstox API sync active (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
 
 render_live_dashboard()
