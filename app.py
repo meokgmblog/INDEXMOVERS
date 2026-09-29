@@ -110,7 +110,11 @@ def fetch_upstox_market_data(keys):
                 if data:
                     combined.update(data)
                     success_count += 1
-        except Exception:
+            else:
+                # Log status for debugging API authentication issues
+                print(f"API Error {res.status_code}: {res.text}")
+        except Exception as e:
+            print(f"Connection Exception: {e}")
             pass
     return combined if success_count > 0 else {}
 
@@ -215,8 +219,8 @@ def render_live_dashboard():
                 pct_change = round(pct_chg, 2)
                 pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
                 
-                # Strict Gainer classification matching terminal standard
-                if net_chg > 0 or pct_change > 0 or (net_chg == 0 and ltp > close):
+                # Standard exchange rule: strictly positive net change = gainer, else loser
+                if net_chg > 0 or pct_change > 0:
                     is_gainer = True
             
             if is_gainer:
@@ -287,7 +291,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v18")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v19")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
@@ -341,7 +345,9 @@ def render_live_dashboard():
                     else:
                         st.markdown("")
 
-    mode_label = "Live Upstox API Active" if not use_fallback else "Smart Market Simulation Active"
-    st.caption(f"⚡ {mode_label} (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
+    if not use_fallback:
+        st.caption(f"🟢 **Live Upstox API Connected** (Last updated: {pd.Timestamp.now().strftime('%H:%M:%S')})")
+    else:
+        st.caption(f"⚠️ **Upstox API Authentication/Connection Failed - Running Simulation Mode** (Check Token validity)")
 
 render_live_dashboard()
