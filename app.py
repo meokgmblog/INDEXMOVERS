@@ -21,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- UPSTOX API CONFIGURATION ---
-UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiI2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
+UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiJIWjYwMzgiLCJqdGkiOiJ2YTlhNTdlYmRmZmFlZTE4YjlhZWEwODEiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6dHJ1ZSwiaXNFeHRlbmRlZCI6dHJ1ZSwiaWF0IjoxNzg4NDk5OTQ3LCJpc3MiOiJ1ZGFwaS1nYXRld2F5LXNlcnZpY2UiLCJleHAiOjE4MjAwOTUyMDB9.u8MU3qcj4cMAr4xdjM5ogr7Z_pxdkc2h3VU3aQc2jHM"
 
 # --- NIFTY 50 CONSTITUENTS & EXACT UPSTOX ISIN KEYS & WEIGHTS ---
 RAW_DATA = [
@@ -89,18 +89,24 @@ def fetch_upstox_market_data(keys):
     headers = {'Accept': 'application/json', 'Authorization': f'Bearer {UPSTOX_TOKEN}'}
     combined = {}
     ts = int(time.time())
-    for i in range(0, len(keys), 20):
-        chunk = keys[i:i+20]
+    
+    # Let's test fetching all keys in one or smaller chunks and track status
+    for i in range(0, len(keys), 15):
+        chunk = keys[i:i+15]
         encoded_keys = urllib.parse.quote(','.join(chunk))
         url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}&_t={ts}"
         try:
             res = requests.get(url, headers=headers, timeout=5)
             if res.status_code == 200:
-                data = res.json().get('data', {})
+                res_json = res.json()
+                data = res_json.get('data', {})
                 if data:
                     combined.update(data)
-        except Exception:
-            pass
+            else:
+                # Store status code as debug info if needed
+                combined[f"_STATUS_{res.status_code}"] = res.text
+        except Exception as e:
+            combined["_ERROR"] = str(e)
     return combined
 
 # --- LIVE DASHBOARD FRAGMENT ---
@@ -111,6 +117,11 @@ def render_live_dashboard():
     keys_list.extend(index_keys)
 
     api_data = fetch_upstox_market_data(keys_list)
+
+    # Debug banner if API returns unauthorized or error
+    for k in list(api_data.keys()):
+        if str(k).startswith("_STATUS") or str(k).startswith("_ERROR"):
+            st.error(f"Upstox API Connection Notice ({k}): {api_data[k][:150]}")
 
     processed_stocks = []
     gainers_count = 0
@@ -123,7 +134,6 @@ def render_live_dashboard():
         pct_change = 0.0
         
         quote = None
-        # Try multiple key variants & ISIN suffix matching
         isin_part = item_key.split('|')[-1] if '|' in item_key else item_key.split(':')[-1]
         
         variants = [item_key, item_key.replace('|', ':'), item_key.replace(':', '|')]
@@ -138,7 +148,7 @@ def render_live_dashboard():
                     quote = val
                     break
 
-        if quote:
+        if quote and isinstance(quote, dict):
             ltp = quote.get('last_price', 0)
             ohlc = quote.get('ohlc', {})
             close = ohlc.get('close', 0) if ohlc else 0
@@ -183,7 +193,7 @@ def render_live_dashboard():
                 index_quote = val
                 break
 
-    if index_quote:
+    if index_quote and isinstance(index_quote, dict):
         nifty_ltp = index_quote.get('last_price', 0)
         ohlc = index_quote.get('ohlc', {})
         close = ohlc.get('close', 0) or index_quote.get('prev_close_price', 0)
@@ -257,10 +267,10 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v13")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v14")
 
     with right_col:
-        st.markdown("#### 📊 Comparative Movers List (Complete 50)")
+        st.markdown("#### 📊 Comparative Movers List (Complete 50)"))
         st.caption("All 50 stocks split between positive index contributors and negative detractors")
 
         gainers = sorted([s for s in processed_stocks if s['impact'] > 0], key=lambda x: x['impact'], reverse=True)
