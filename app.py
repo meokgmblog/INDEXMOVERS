@@ -2,18 +2,14 @@ import streamlit as st
 import pandas as pd
 import requests
 import plotly.graph_objects as go
-from streamlit_autorefresh import st_autorefresh
+import streamlit.components.v1 as components
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="NIFTY 50 Complete Index Movers & Breadth",
+    page_title="NIFTY 50 Index Movers & Breadth",
     page_icon="📈",
     layout="wide"
 )
-
-# --- AUTO-REFRESH CONFIGURATION (Every 15 Seconds) ---
-# This triggers a background rerun of the script every 15,000 milliseconds (15 seconds)
-count = st_autorefresh(interval=15000, limit=None, key="nifty_live_refresh")
 
 # Dark Theme Custom Styling
 st.markdown("""
@@ -22,6 +18,18 @@ st.markdown("""
     .stMetric { background-color: #161b22; padding: 10px; border-radius: 8px; border: 1px solid #30363d; }
     </style>
 """, unsafe_allow_html=True)
+
+# --- AUTO-REFRESH COMPONENT (Every 15 Seconds without external pip packages) ---
+def auto_refresh():
+    components.html("""
+        <script>
+            setTimeout(function() {
+                window.parent.location.reload();
+            }, 15000);
+        </script>
+    """, height=0, width=0)
+
+auto_refresh()
 
 # --- UPSTOX API CONFIGURATION ---
 UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2M0FZSEUiLCJqdGkiOiI2YTMwY2UxNTY4ODI0Zjc3ZDc1NmU3NjgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlzRXh0ZW5kZWQiOnRydWUsImlhdCI6MTc4MTU4MzM4MSwiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiZXhwIjoxODEzMTgzMjAwfQ.IoRDQhbhcn3w9Fkw75N3eBSamLcaA8GcAhVjf5K-iL8"
@@ -106,8 +114,7 @@ for sym, meta in STOCK_META.items():
         pct_change = round(((ltp - close_price) / close_price) * 100, 2)
     else:
         import random
-        # Seed pseudo-random with symbol and current auto-refresh count so it shifts dynamically during live demo ticks
-        random.seed(hash(sym) + (count // 2))
+        random.seed(hash(sym))
         pct_change = round(random.uniform(-2.2, 2.2), 2)
         
     pts_impact = round((weight * pct_change) / 10, 2)
@@ -169,13 +176,11 @@ with right_col:
     
     max_rows = max(len(gainers), len(losers))
     
-    # Render scrollable/full comparative row list container
     container = st.container(height=520)
     with container:
         for i in range(max_rows):
             col_g, col_bar_g, col_bar_l, col_l = st.columns([2.5, 3, 3, 2.5])
             
-            # Gainer Side
             with col_g:
                 if i < len(gainers):
                     g = gainers[i]
@@ -195,7 +200,6 @@ with right_col:
                 else:
                     st.markdown("")
 
-            # Loser Side
             with col_bar_l:
                 if i < len(losers):
                     l = losers[i]
@@ -217,4 +221,4 @@ with right_col:
 
 # --- FOOTER STATUS ---
 st.markdown("---")
-st.caption(f"⚡ Live stream active. Page auto-refreshes every 15 seconds (Tick count: {count})")
+st.caption("⚡ Live feed active: Data refreshes automatically every 15 seconds.")
