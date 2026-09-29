@@ -37,7 +37,7 @@ RAW_DATA = [
     ("BAJFINANCE", "NSE_EQ|INE296A01032", 2.56),
     ("ITC", "NSE_EQ|INE154A01025", 2.33),
     ("TCS", "NSE_EQ|INE467B01029", 2.19),
-    ("LTIM", "NSE_EQ|INE214T01019", 2.15),  # Fallback ISIN if needed
+    ("LTIM", "NSE_EQ|INE214T01019", 2.15),
     ("TITAN", "NSE_EQ|INE280A01028", 1.89),
     ("SUNPHARMA", "NSE_EQ|INE044A01036", 1.85),
     ("HINDUNILVR", "NSE_EQ|INE030A01027", 1.61),
@@ -87,7 +87,6 @@ STOCK_META = load_instrument_keys()
 def fetch_upstox_market_data(keys):
     headers = {'Accept': 'application/json', 'Authorization': f'Bearer {UPSTOX_TOKEN}'}
     combined = {}
-    # Add a cache-buster timestamp query param to prevent stale cached API responses from Upstox/Streamlit
     ts = int(time.time())
     for i in range(0, len(keys), 25):
         chunk = keys[i:i+25]
@@ -106,8 +105,6 @@ def fetch_upstox_market_data(keys):
 @st.fragment(run_every=10)
 def render_live_dashboard():
     keys_list = [meta["key"] for meta in STOCK_META.values()]
-    
-    # Official Upstox Index Key for Nifty 50
     index_keys = ["NSE_INDEX|Nifty 50", "NSE_INDEX:Nifty 50"]
     keys_list.extend(index_keys)
 
@@ -123,11 +120,20 @@ def render_live_dashboard():
         pts_impact = 0.0
         pct_change = 0.0
         
-        quote = api_data.get(item_key)
-        if not quote:
-            # Try alternate key formatting if needed
-            alt_key = item_key.replace('|', ':')
-            quote = api_data.get(alt_key)
+        # Robust quote lookup trying multiple key variations
+        quote = None
+        variants = [item_key, item_key.replace('|', ':'), item_key.replace(':', '|')]
+        for v in variants:
+            if api_data and v in api_data:
+                quote = api_data[v]
+                break
+        
+        # If still not found, search by symbol name in response dict keys
+        if not quote and api_data:
+            for k, val in api_data.items():
+                if sym in k.upper():
+                    quote = val
+                    break
 
         if quote:
             ltp = quote.get('last_price', 0)
@@ -158,8 +164,12 @@ def render_live_dashboard():
     # --- LIVE NIFTY 50 INDEX DATA COLLECTION ---
     index_quote = None
     for ik in index_keys:
-        if ik in api_data:
-            index_quote = api_data[ik]
+        variants = [ik, ik.replace('|', ':'), ik.replace(':', '|')]
+        for v in variants:
+            if api_data and v in api_data:
+                index_quote = api_data[v]
+                break
+        if index_quote:
             break
 
     if index_quote:
@@ -175,7 +185,6 @@ def render_live_dashboard():
         nifty_net_change = round(index_quote.get('net_change', nifty_ltp - close), 2)
         nifty_pct_change = round(index_quote.get('net_change_percentage', ((nifty_net_change / close) * 100) if close else 0.0), 2)
     else:
-        # Fallback live sync value if index key fails temporarily
         nifty_ltp = 22638.15
         nifty_net_change = -142.10
         nifty_pct_change = -0.62
@@ -237,7 +246,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v11")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v12")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
