@@ -1,6 +1,7 @@
 import streamlit as st
 import pandas as pd
 import requests
+import urllib.parse
 import plotly.graph_objects as go
 import time
 
@@ -88,9 +89,10 @@ def fetch_upstox_market_data(keys):
     headers = {'Accept': 'application/json', 'Authorization': f'Bearer {UPSTOX_TOKEN}'}
     combined = {}
     ts = int(time.time())
-    for i in range(0, len(keys), 25):
-        chunk = keys[i:i+25]
-        url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={','.join(chunk)}&_t={ts}"
+    for i in range(0, len(keys), 20):
+        chunk = keys[i:i+20]
+        encoded_keys = urllib.parse.quote(','.join(chunk))
+        url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}&_t={ts}"
         try:
             res = requests.get(url, headers=headers, timeout=5)
             if res.status_code == 200:
@@ -120,18 +122,19 @@ def render_live_dashboard():
         pts_impact = 0.0
         pct_change = 0.0
         
-        # Robust quote lookup trying multiple key variations
         quote = None
+        # Try multiple key variants & ISIN suffix matching
+        isin_part = item_key.split('|')[-1] if '|' in item_key else item_key.split(':')[-1]
+        
         variants = [item_key, item_key.replace('|', ':'), item_key.replace(':', '|')]
         for v in variants:
             if api_data and v in api_data:
                 quote = api_data[v]
                 break
         
-        # If still not found, search by symbol name in response dict keys
         if not quote and api_data:
             for k, val in api_data.items():
-                if sym in k.upper():
+                if isin_part in k or sym.upper() in k.upper():
                     quote = val
                     break
 
@@ -139,6 +142,8 @@ def render_live_dashboard():
             ltp = quote.get('last_price', 0)
             ohlc = quote.get('ohlc', {})
             close = ohlc.get('close', 0) if ohlc else 0
+            if not close:
+                close = quote.get('prev_close_price', 0)
             if not close:
                 net_change = quote.get('net_change', 0)
                 if ltp and net_change:
@@ -171,6 +176,12 @@ def render_live_dashboard():
                 break
         if index_quote:
             break
+
+    if not index_quote and api_data:
+        for k, val in api_data.items():
+            if "NIFTY 50" in k.upper():
+                index_quote = val
+                break
 
     if index_quote:
         nifty_ltp = index_quote.get('last_price', 0)
@@ -246,7 +257,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v12")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v13")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
