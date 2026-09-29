@@ -130,7 +130,6 @@ def render_live_dashboard():
     api_raw_data = fetch_upstox_market_data(keys_list)
     use_fallback = len(api_raw_data) == 0
 
-    # Build robust lookup map supporting all format variations
     lookup_map = {}
     for api_key, quote_obj in api_raw_data.items():
         if isinstance(quote_obj, dict):
@@ -180,9 +179,9 @@ def render_live_dashboard():
             pct_change = round(random.uniform(-2.2, 1.8), 2)
             pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
             
-            if pts_impact > 0:
+            if pct_change > 0:
                 gainers_count += 1
-            elif pts_impact < 0:
+            else:
                 losers_count += 1
             processed_stocks.append({"symbol": sym, "impact": pts_impact, "pct": pct_change})
     else:
@@ -199,6 +198,7 @@ def render_live_dashboard():
                 lookup_map.get(sym.upper()) or {}
             )
 
+            is_gainer = False
             if quote and isinstance(quote, dict):
                 ltp = float(quote.get('last_price', 0.0))
                 net_chg = float(quote.get('net_change', 0.0))
@@ -214,9 +214,12 @@ def render_live_dashboard():
 
                 pct_change = round(pct_chg, 2)
                 pts_impact = round((nifty_ltp * weight * pct_change) / 10000, 2)
+                
+                # Strict Gainer classification matching terminal standard
+                if net_chg > 0 or pct_change > 0 or (net_chg == 0 and ltp > close):
+                    is_gainer = True
             
-            # Use direct stock net change / percentage change to accurately classify Gainer vs Loser
-            if pct_change > 0:
+            if is_gainer:
                 gainers_count += 1
             else:
                 losers_count += 1
@@ -284,7 +287,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v17")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v18")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
