@@ -21,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 # --- UPSTOX API CONFIGURATION ---
-UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2M0FZSEUiLCJqdGkiOiI2YTMwY2UxNTY4ODI0Zjc3ZDc1NmU3NjgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlzRXh0ZW5kZWQiOnRydWUsImlhdCI6MTc4MTU4MzM4MSwiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiZXhwIjoxODEzMTgzMjAwfQ.IoRDQhbhcn3w9Fkw75N3eBSamLcaA8GcAhVjf5K-iL8"
+UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2M0FZSEUiLCJqdGkiOiJ2YTMwY2UxNTY4ODI0Zjc3ZDc1NmU3NjgiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlzRXh0ZW5kZWQiOnRydWUsImlhdCI6MTc4MTU4MzM4MSwiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiZXhwIjoxODEzMTgzMjAwfQ.IoRDQhbhcn3w9Fkw75N3eBSamLcaA8GcAhVjf5K-iL8"
 
 # --- NIFTY 50 CONSTITUENTS & EXACT UPSTOX ISIN KEYS & WEIGHTS ---
 RAW_DATA = [
@@ -160,11 +160,11 @@ def render_live_dashboard():
                 break
 
     if index_quote and isinstance(index_quote, dict):
-        nifty_ltp = float(index_quote.get('last_price', 0.0) or 22683.75)
+        nifty_ltp = float(index_quote.get('last_price', 0.0) or index_quote.get('ltp', 0.0) or 22683.75)
         ohlc = index_quote.get('ohlc', {})
         close = float(ohlc.get('close', 0.0) or index_quote.get('prev_close_price', 0.0) or nifty_ltp)
-        nifty_net_change = float(index_quote.get('net_change', 0.0) or (nifty_ltp - close if close else 0.0))
-        nifty_pct_change = float(index_quote.get('net_change_percentage', 0.0) or ((nifty_net_change / close) * 100 if close else 0.0))
+        nifty_net_change = float(index_quote.get('net_change', 0.0) or index_quote.get('change', 0.0) or (nifty_ltp - close if close else 0.0))
+        nifty_pct_change = float(index_quote.get('net_change_percentage', 0.0) or index_quote.get('net_change_percent', 0.0) or ((nifty_net_change / close) * 100 if close else 0.0))
     else:
         nifty_ltp = 22683.75
         nifty_net_change = 0.0
@@ -189,16 +189,17 @@ def render_live_dashboard():
 
         is_gainer = False
         if quote and isinstance(quote, dict):
-            ltp = float(quote.get('last_price', 0.0))
-            net_chg = float(quote.get('net_change', 0.0))
-            pct_chg = float(quote.get('net_change_percentage', 0.0))
+            ltp = float(quote.get('last_price', 0.0) or quote.get('ltp', 0.0))
+            net_chg = float(quote.get('net_change', 0.0) or quote.get('change', 0.0))
+            pct_chg = float(quote.get('net_change_percentage', 0.0) or quote.get('net_change_percent', 0.0) or quote.get('change_percent', 0.0))
             
             ohlc = quote.get('ohlc', {})
-            close = float(ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0))
+            close = float(ohlc.get('close', 0.0) or quote.get('prev_close_price', 0.0) or quote.get('close_price', 0.0))
             
-            if net_chg == 0.0 and close > 0 and ltp > 0:
-                net_chg = ltp - close
+            # Robust fallback calculation if API returns 0 during closed market hours
             if pct_chg == 0.0 and close > 0 and ltp > 0:
+                if net_chg == 0.0:
+                    net_chg = ltp - close
                 pct_chg = ((ltp - close) / close) * 100
 
             pct_change = round(pct_chg, 2)
@@ -275,7 +276,7 @@ def render_live_dashboard():
             )]
         )
 
-        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v22")
+        st.plotly_chart(fig, use_container_width=True, key="donut_chart_pts_v23")
 
     with right_col:
         st.markdown("#### 📊 Comparative Movers List (Complete 50)")
