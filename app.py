@@ -4,15 +4,83 @@ import requests
 import urllib.parse
 import time
 
-st.set_page_config(page_title="Nifty Index & Constituents LTP Verification", layout="wide")
+# --- PAGE CONFIGURATION ---
+st.set_page_config(
+    page_title="Nifty 50 Live Intelligence Hub",
+    page_icon="⚡",
+    layout="wide"
+)
 
-st.title("🔍 Nifty Index & Constituents LTP Verification")
-st.markdown("Enter your fresh Upstox Access Token below to securely fetch live market data for the Nifty 50 Index and all its components.")
+# --- PREMIUM GLASSMORPHISM & DARK THEME STYLING ---
+st.markdown("""
+<style>
+    /* Global App Background & Font */
+    .stApp {
+        background: radial-gradient(circle at 10% 20%, rgb(11, 15, 25) 0%, rgb(5, 7, 12) 90%);
+        color: #f3f4f6;
+        font-family: 'Inter', sans-serif;
+    }
+    
+    /* Glassmorphism Card Container */
+    .glass-card {
+        background: rgba(17, 24, 39, 0.65);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+        margin-bottom: 20px;
+    }
+    
+    /* Glow text & headers */
+    h1, h2, h3 {
+        color: #ffffff !important;
+        font-weight: 700;
+    }
+    
+    /* Live Status Badge */
+    .live-badge {
+        display: inline-flex;
+        align-items: center;
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #34d399;
+        padding: 4px 12px;
+        border-radius: 50px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        gap: 6px;
+    }
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #34d399;
+        border-radius: 50%;
+        box-shadow: 0 0 8px #34d399;
+        animation: pulse 2s infinite;
+    }
+    @keyframes pulse {
+        0% { transform: scale(0.95); opacity: 0.8; }
+        50% { transform: scale(1.2); opacity: 1; }
+        100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    
+    /* Custom Metric Styling */
+    .metric-box {
+        background: rgba(255, 255, 255, 0.03);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 14px;
+        padding: 16px;
+        text-align: center;
+    }
+</style>
+""", unsafe_allow_html=True)
 
-# --- INTERACTIVE TOKEN INPUT FIELD ---
-user_token = st.text_input("Upstox Access Token", type="password", value="")
+# --- HARDCODED UPSTOX ACCESS TOKEN ---
+UPSTOX_TOKEN = "eyJ0eXAiOiJKV1QiLCJrZXlfaWQiOiJza192MS4wIiwiYWxnIjoiSFMyNTYifQ.eyJzdWIiOiI2M0FZSEUiLCJqdGkiOiI2YWJjYTEyNzZkMzA5YTFlMDZlYjhjNzkiLCJpc011bHRpQ2xpZW50IjpmYWxzZSwiaXNQbHVzUGxhbiI6ZmFsc2UsImlhdCI6MTc5MDc0NjkxOSwiaXNzIjoidWRhcGktZ2F0ZXdheS1zZXJ2aWNlIiwiZXhwIjoxNzkwODA1NjAwfQ.iufHPeHdNX3L4q6jcOxvPUw0Gdzjnrle0EnhaQzkL6c"
 
-# --- NIFTY 50 CONSTITUENTS & EXACT UPSTOX ISIN KEYS & WEIGHTS ---
+# --- NIFTY 50 CONSTITUENTS & WEIGHTS ---
 RAW_DATA = [
     ("HDFCBANK", "NSE_EQ|INE040A01034", 9.89),
     ("ICICIBANK", "NSE_EQ|INE090A01021", 9.35),
@@ -86,83 +154,137 @@ def fetch_market_data(keys, token):
                 data = res_json.get('data', {})
                 if data:
                     combined.update(data)
-            else:
-                st.error(f"API Error [{res.status_code}]: {res.text}")
-        except Exception as e:
-            st.error(f"Connection Exception: {e}")
+        except Exception:
+            pass
     return combined
 
-if st.button("🔄 Fetch Live Index & Stock LTP"):
-    if not user_token.strip():
-        st.warning("Please enter your Upstox Access Token above.")
-    else:
-        # Correct unique index key for Nifty 50
-        index_keys = ["NSE_INDEX|Nifty 50"]
-        keys_list = index_keys + [item[1] for item in RAW_DATA]
-        
-        api_response = fetch_market_data(keys_list, user_token.strip())
-        
-        if not api_response:
-            st.error("Failed to retrieve data. Please check your token.")
-        else:
-            lookup_map = {}
-            for api_key, quote_obj in api_response.items():
-                if isinstance(quote_obj, dict):
-                    lookup_map[api_key] = quote_obj
-                    lookup_map[api_key.replace(':', '|')] = quote_obj
-                    lookup_map[api_key.replace('|', ':')] = quote_obj
-                    
-                    inst_token = quote_obj.get('instrument_token')
-                    if inst_token:
-                        lookup_map[inst_token] = quote_obj
-                        
-                    sym = quote_obj.get('symbol')
-                    if sym:
-                        lookup_map[sym.upper()] = quote_obj
+# --- HEADER SECTION ---
+col_head1, col_head2 = st.columns([3, 1])
+with col_head1:
+    st.title("⚡ Nifty 50 Intelligence Terminal")
+    st.markdown("Real-time telemetry and component market depth verification via Upstox API.")
+with col_head2:
+    st.markdown("<div style='text-align: right; padding-top: 15px;'><span class='live-badge'><span class='pulse-dot'></span> Silent Live Feed</span></div>", unsafe_allow_html=True)
 
-            # 1. Extract Nifty Index Quote
-            nifty_quote = lookup_map.get("NSE_INDEX|Nifty 50") or lookup_map.get("NSE_INDEX:Nifty 50")
+st.markdown("<br>", unsafe_allow_html=True)
+
+# --- AUTO-REFRESHING LIVE FRAGMENT (Silent background polling every 10 seconds) ---
+@st.fragment(run_every=10)
+def render_live_market_data():
+    index_keys = ["NSE_INDEX|Nifty 50"]
+    keys_list = index_keys + [item[1] for item in RAW_DATA]
+    
+    api_response = fetch_market_data(keys_list, UPSTOX_TOKEN)
+    
+    if not api_response:
+        st.error("⚠️ Failed to establish connection or retrieve market quotes. Please verify your network or token validity.")
+        return
+        
+    lookup_map = {}
+    for api_key, quote_obj in api_response.items():
+        if isinstance(quote_obj, dict):
+            lookup_map[api_key] = quote_obj
+            lookup_map[api_key.replace(':', '|')] = quote_obj
+            lookup_map[api_key.replace('|', ':')] = quote_obj
             
-            if nifty_quote:
-                n_ltp = nifty_quote.get('last_price', 0.0)
-                n_net = nifty_quote.get('net_change', 0.0)
-                n_pct = nifty_quote.get('net_change_percentage', 0.0)
-                st.metric(label="NIFTY 50 Index (Live)", value=f"{n_ltp:,.2f}", delta=f"{n_net:+.2f} ({n_pct:+.2f}%)")
-            else:
-                st.warning("Could not locate Nifty 50 Index quote directly via 'NSE_INDEX|Nifty 50'.")
+            inst_token = quote_obj.get('instrument_token')
+            if inst_token:
+                lookup_map[inst_token] = quote_obj
+                
+            sym = quote_obj.get('symbol')
+            if sym:
+                lookup_map[sym.upper()] = quote_obj
 
-            # 2. Build Stock Rows & calculate cumulative metrics
-            rows = []
-            for sym, key, weight in RAW_DATA:
-                quote = (
-                    lookup_map.get(key) or 
-                    lookup_map.get(key.replace('|', ':')) or 
-                    lookup_map.get(key.replace(':', '|')) or 
-                    lookup_map.get(sym.upper()) or {}
-                )
-                
-                ltp = quote.get('last_price', 0.0)
-                net_chg = quote.get('net_change', 0.0)
-                
-                if net_chg != 0 and ltp > 0:
-                    close = round(ltp - net_chg, 2)
-                else:
-                    ohlc = quote.get('ohlc', {})
-                    close = ohlc.get('close', 0.0) or quote.get('prev_close_price', ltp)
-                
-                pct_change = quote.get('net_change_percentage', 0.0)
-                if pct_change == 0.0 and close > 0 and ltp > 0:
-                    pct_change = round(((ltp - close) / close) * 100, 2)
-                
-                rows.append({
-                    "Symbol": sym,
-                    "Instrument Key": key,
-                    "Weight (%)": weight,
-                    "LTP (₹)": ltp,
-                    "Prev Close (₹)": close,
-                    "Change (%)": pct_change
-                })
-                
-            df_result = pd.DataFrame(rows)
-            st.success(f"Successfully fetched live data for Nifty Index and {len(df_result)} constituent stocks!")
-            st.dataframe(df_result, use_container_width=True)
+    # 1. Extract Nifty Index Quote
+    nifty_quote = lookup_map.get("NSE_INDEX|Nifty 50") or lookup_map.get("NSE_INDEX:Nifty 50")
+    
+    # 2. Build Stock Rows & calculate market breadth
+    rows = []
+    gainers_count = 0
+    losers_count = 0
+    unchanged_count = 0
+    
+    for sym, key, weight in RAW_DATA:
+        quote = (
+            lookup_map.get(key) or 
+            lookup_map.get(key.replace('|', ':')) or 
+            lookup_map.get(key.replace(':', '|')) or 
+            lookup_map.get(sym.upper()) or {}
+        )
+        
+        ltp = quote.get('last_price', 0.0)
+        net_chg = quote.get('net_change', 0.0)
+        
+        if net_chg != 0 and ltp > 0:
+            close = round(ltp - net_chg, 2)
+        else:
+            ohlc = quote.get('ohlc', {})
+            close = ohlc.get('close', 0.0) or quote.get('prev_close_price', ltp)
+        
+        pct_change = quote.get('net_change_percentage', 0.0)
+        if pct_change == 0.0 and close > 0 and ltp > 0:
+            pct_change = round(((ltp - close) / close) * 100, 2)
+            
+        if pct_change > 0:
+            gainers_count += 1
+        elif pct_change < 0:
+            losers_count += 1
+        else:
+            unchanged_count += 1
+            
+        rows.append({
+            "Symbol": sym,
+            "Instrument Key": key,
+            "Weight (%)": weight,
+            "LTP (₹)": ltp,
+            "Prev Close (₹)": close,
+            "Change (%)": pct_change
+        })
+        
+    df_result = pd.DataFrame(rows)
+
+    # --- TOP METRICS ROW ---
+    m1, m2, m3, m4 = st.columns(4)
+    
+    with m1:
+        if nifty_quote:
+            n_ltp = nifty_quote.get('last_price', 0.0)
+            n_net = nifty_quote.get('net_change', 0.0)
+            n_pct = nifty_quote.get('net_change_percentage', 0.0)
+            st.metric(label="📊 NIFTY 50 Index", value=f"{n_ltp:,.2f}", delta=f"{n_net:+.2f} ({n_pct:+.2f}%)")
+        else:
+            st.metric(label="📊 NIFTY 50 Index", value="Unavailable")
+            
+    with m2:
+        st.metric(label="🚀 Market Gainers", value=f"{gainers_count} Stocks", delta="Bullish breadth" if gainers_count > losers_count else None)
+        
+    with m3:
+        st.metric(label="🔻 Market Losers", value=f"{losers_count} Stocks", delta=f"-{losers_count}" if losers_count > 0 else "0", delta_color="inverse")
+        
+    with m4:
+        st.metric(label="⚖️ Unchanged / Flat", value=f"{unchanged_count} Stocks")
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
+    # --- DATAFRAME VIEW INSIDE GLASS CONTAINER ---
+    st.markdown("### 📋 Nifty 50 Constituents Real-Time Matrix")
+    
+    # Styling dataframe for clean visual presentation
+    def style_change(val):
+        color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#9ca3af"
+        return f"color: {color}; font-weight: 600;"
+
+    styled_df = df_result.style.format({
+        "Weight (%)": "{:.2f}%",
+        "LTP (₹)": "₹{:,.2f}",
+        "Prev Close (₹)": "₹{:,.2f}",
+        "Change (%)": "{:+.2f}%"
+    }).applymap(style_change, subset=["Change (%)"])
+
+    st.dataframe(styled_df, use_container_width=True, height=520)
+    
+    # Last updated timestamp footer
+    st.caption(f"Last synchronized: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} (Auto-refreshes every 10 seconds silently)")
+
+# Execute the live fragment loop
+render_live_market_data()
