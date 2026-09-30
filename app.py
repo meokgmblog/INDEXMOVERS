@@ -8,52 +8,64 @@ import pytz
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Nifty 50 Executive Terminal",
-    page_icon="🏛️",
+    page_title="Nifty 50 Quantum Command Deck",
+    page_icon="⚡",
     layout="wide"
 )
 
-# --- NEW UI: OBSIDIAN & PLATINUM EXECUTIVE FINTECH STYLING ---
+# --- CYBER-NEON COMMAND DECK UI STYLING ---
 st.markdown("""
 <style>
-    /* Import Google Font */
-    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+    @import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
 
-    /* Global Matte Obsidian Theme */
     .stApp {
-        background: linear-gradient(180deg, #090a0f 0%, #040507 100%);
+        background: #03050b;
+        background-image: 
+            radial-gradient(at 0% 0%, rgba(14, 165, 233, 0.08) 0px, transparent 50%),
+            radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.06) 0px, transparent 50%);
         color: #f1f5f9;
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: 'Space Grotesk', sans-serif;
     }
     
-    /* Hide default streamlit elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Executive Glass Header Container */
-    .hero-header {
-        background: rgba(18, 20, 28, 0.85);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+    /* Bento Grid Containers */
+    .bento-card {
+        background: rgba(13, 17, 28, 0.7);
+        backdrop-filter: blur(16px);
+        -webkit-backdrop-filter: blur(16px);
         border: 1px solid rgba(255, 255, 255, 0.06);
-        border-left: 4px solid #d4af37; /* Subtle champagne gold executive accent */
-        border-radius: 16px;
-        padding: 24px 32px;
-        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.7);
-        margin-bottom: 24px;
+        border-radius: 20px;
+        padding: 22px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        height: 100%;
+        transition: border-color 0.2s ease;
+    }
+    .bento-card:hover {
+        border-color: rgba(14, 165, 233, 0.3);
+    }
+
+    /* Header Command Title */
+    .command-header {
         display: flex;
         justify-content: space-between;
         align-items: center;
+        background: rgba(13, 17, 28, 0.8);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 20px;
+        padding: 20px 28px;
+        margin-bottom: 20px;
     }
 
-    /* Executive Live Status Pill */
-    .live-badge-container {
+    /* Live Cyber Badge */
+    .cyber-badge {
         display: inline-flex;
         align-items: center;
-        background: rgba(212, 175, 55, 0.08);
-        border: 1px solid rgba(212, 175, 55, 0.3);
-        color: #e6c669;
+        background: rgba(16, 185, 129, 0.12);
+        border: 1px solid rgba(16, 185, 129, 0.4);
+        color: #34d399;
         padding: 6px 14px;
         border-radius: 30px;
         font-size: 0.75rem;
@@ -62,38 +74,35 @@ st.markdown("""
         text-transform: uppercase;
         gap: 8px;
     }
-    .pulse-dot {
-        width: 8px;
-        height: 8px;
-        background-color: #e6c669;
+    .cyber-dot {
+        width: 7px;
+        height: 7px;
+        background-color: #34d399;
         border-radius: 50%;
-        box-shadow: 0 0 10px #e6c669;
-        animation: pulse 1.8s infinite ease-in-out;
+        box-shadow: 0 0 10px #34d399;
+        animation: blink 1.5s infinite;
     }
-    @keyframes pulse {
-        0% { transform: scale(0.9); opacity: 0.7; }
-        50% { transform: scale(1.3); opacity: 1; }
-        100% { transform: scale(0.9); opacity: 0.7; }
+    @keyframes blink {
+        0% { opacity: 0.3; }
+        50% { opacity: 1; }
+        100% { opacity: 0.3; }
     }
 
-    /* Dataframe Table Wrapper Styling */
+    /* Dataframe Styling */
     div[data-testid="stDataFrame"] {
-        background: rgba(18, 20, 28, 0.5);
+        background: rgba(13, 17, 28, 0.5);
         border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 16px;
         padding: 4px;
-        backdrop-filter: blur(16px);
-        box-shadow: 0 12px 32px rgba(0,0,0,0.6);
+        backdrop-filter: blur(12px);
     }
-    
-    /* Terminal Footer Timestamp */
+
     .terminal-footer {
         text-align: center;
         color: #64748b;
         font-size: 0.8rem;
-        margin-top: 24px;
+        margin-top: 20px;
         font-weight: 500;
-        letter-spacing: 0.03em;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -179,23 +188,23 @@ def fetch_market_data(keys, token):
             pass
     return combined
 
-# --- EXECUTIVE HERO HEADER ---
+# --- COMMAND DECK HEADER ---
 st.markdown("""
-<div class="hero-header">
+<div class="command-header">
     <div>
-        <p style="margin: 0 0 2px 0; color: #d4af37; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;">Institutional Feed</p>
-        <h1 style="margin: 0; font-size: 1.9rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">Nifty 50 Executive Terminal</h1>
+        <p style="margin: 0; color: #0ea5e9; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase;">Quantum Telemetry System</p>
+        <h1 style="margin: 2px 0 0 0; font-size: 1.8rem; font-weight: 700; color: #ffffff;">Nifty 50 Command Deck</h1>
     </div>
     <div>
-        <div class="live-badge-container">
-            <div class="pulse-dot"></div>
-            Secure Telemetry Active
+        <div class="cyber-badge">
+            <div class="cyber-dot"></div>
+            Stream Online
         </div>
     </div>
 </div>
 """, unsafe_allow_html=True)
 
-# --- AUTO-REFRESHING LIVE FRAGMENT (Silent background polling every 10 seconds) ---
+# --- AUTO-REFRESHING LIVE FRAGMENT ---
 @st.fragment(run_every=10)
 def render_live_market_data():
     index_keys = ["NSE_INDEX|Nifty 50"]
@@ -267,32 +276,38 @@ def render_live_market_data():
         
     df_result = pd.DataFrame(rows)
 
-    # --- TOP METRICS GRID ---
-    m1, m2, m3 = st.columns(3)
+    # --- BENTO GRID METRICS SECTION ---
+    col1, col2, col3 = st.columns([2, 1, 1])
     
-    with m1:
+    with col1:
+        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
         if nifty_quote:
             n_ltp = nifty_quote.get('last_price', 0.0)
             n_net = nifty_quote.get('net_change', 0.0)
             n_pct = nifty_quote.get('net_change_percentage', 0.0)
-            st.metric(label="📊 NIFTY 50 Index", value=f"{n_ltp:,.2f}", delta=f"{n_net:+.2f} ({n_pct:+.2f}%)")
+            st.metric(label="📊 NIFTY 50 Index Telemetry", value=f"{n_ltp:,.2f}", delta=f"{n_net:+.2f} ({n_pct:+.2f}%)")
         else:
-            st.metric(label="📊 NIFTY 50 Index", value="Unavailable")
+            st.metric(label="📊 NIFTY 50 Index Telemetry", value="Unavailable")
+        st.markdown('</div>', unsafe_allow_html=True)
             
-    with m2:
-        st.metric(label="🚀 Market Gainers", value=f"{gainers_count} Stocks", delta="Positive Breadth" if gainers_count >= losers_count else None)
+    with col2:
+        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
+        st.metric(label="🚀 Market Gainers", value=f"{gainers_count} Stocks", delta="Positive" if gainers_count >= losers_count else None)
+        st.markdown('</div>', unsafe_allow_html=True)
         
-    with m3:
+    with col3:
+        st.markdown('<div class="bento-card">', unsafe_allow_html=True)
         st.metric(label="🔻 Market Losers", value=f"{losers_count} Stocks", delta=f"-{losers_count}" if losers_count > 0 else "0", delta_color="inverse")
+        st.markdown('</div>', unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- DATAFRAME VIEW ---
-    st.markdown("<h3 style='font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; letter-spacing: -0.01em;'>📋 Constituents Live Telemetry</h3>", unsafe_allow_html=True)
+    # --- DATAFRAME VIEW INSIDE BENTO CONTAINER ---
+    st.markdown("<h3 style='font-size: 1.15rem; font-weight: 600; color: #f1f5f9; margin-bottom: 8px;'>📋 Constituents Live Telemetry Stream</h3>", unsafe_allow_html=True)
     
     def style_change(val):
         color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#94a3b8"
-        return f"color: {color}; font-weight: 700; background-color: rgba({'52, 211, 153' if val > 0 else '248, 113, 113' if val < 0 else '148, 163, 184'}, 0.06); border-radius: 4px; padding: 2px 6px;"
+        return f"color: {color}; font-weight: 700; background-color: rgba({'52, 211, 153' if val > 0 else '248, 113, 113' if val < 0 else '148, 163, 184'}, 0.08); border-radius: 4px; padding: 2px 6px;"
 
     styled_df = df_result.style.format({
         "Weight (%)": "{:.2f}%",
