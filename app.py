@@ -38,7 +38,7 @@ st.markdown("""
         -webkit-backdrop-filter: blur(20px);
         border: 1px solid rgba(255, 255, 255, 0.07);
         border-radius: 20px;
-        padding: 8px 6px;
+        padding: 8px 16px;
         box-shadow: 0 24px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
         margin-bottom: 24px;
         display: flex;
