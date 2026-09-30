@@ -27,7 +27,6 @@ st.markdown("""
         font-family: 'Outfit', sans-serif;
     }
     
-    /* Hide default streamlit chrome */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
     header {visibility: hidden;}
@@ -104,20 +103,19 @@ st.markdown("""
         height: 100%;
     }
 
-    /* Contribution List Row Item */
-    .contrib-row {
+    /* Reference Style Split Row Item */
+    .split-row {
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 6px 10px;
+        padding: 8px 10px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         font-size: 0.85rem;
     }
-    .contrib-row:hover {
+    .split-row:hover {
         background: rgba(255, 255, 255, 0.02);
     }
 
-    /* Compact Table Wrapper Styling */
     div[data-testid="stDataFrame"] {
         background: rgba(13, 17, 26, 0.6);
         border: 1px solid rgba(255, 255, 255, 0.06);
@@ -127,7 +125,6 @@ st.markdown("""
         box-shadow: 0 12px 40px rgba(0,0,0,0.6);
     }
     
-    /* Terminal Footer */
     .terminal-footer {
         text-align: center;
         color: #64748b;
@@ -264,13 +261,11 @@ def render_live_market_data():
             if sym:
                 lookup_map[sym.upper()] = quote_obj
 
-    # 1. Extract Nifty Index Quote
     nifty_quote = lookup_map.get("NSE_INDEX|Nifty 50") or lookup_map.get("NSE_INDEX:Nifty 50")
     nifty_net = nifty_quote.get('net_change', 0.0) if nifty_quote else 0.0
     nifty_ltp = nifty_quote.get('last_price', 0.0) if nifty_quote else 0.0
     nifty_pct = nifty_quote.get('net_change_percentage', 0.0) if nifty_quote else 0.0
     
-    # 2. Build Stock Rows & Calculate Contributions
     rows = []
     gainers_count = 0
     losers_count = 0
@@ -301,7 +296,6 @@ def render_live_market_data():
         elif pct_change < 0:
             losers_count += 1
             
-        # Estimated point contribution to Nifty
         est_contrib = round((pct_change / 100.0) * weight * (nifty_ltp / 100.0) * 0.15, 2) if nifty_ltp > 0 else 0.0
             
         rows.append({
@@ -358,15 +352,14 @@ def render_live_market_data():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- TWO-COLUMN LAYOUT: DONUT CHART & FULL CONTRIBUTION LIST ---
-    col_chart, col_list = st.columns([1, 1], gap="medium")
+    # --- TWO-COLUMN LAYOUT: DONUT CHART & REFERENCE STYLE SPLIT LIST ---
+    col_chart, col_split = st.columns([1, 1], gap="medium")
 
     with col_chart:
         st.markdown("<div class='section-container'>", unsafe_allow_html=True)
         st.markdown("<h3 style='font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px;'>🎯 Index Points Contribution</h3>", unsafe_allow_html=True)
         st.markdown("<p style='font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;'>Constituent impact breakdown on Nifty 50 movement</p>", unsafe_allow_html=True)
 
-        # Prepare Data for Donut Chart
         df_sorted = df_result.sort_values(by="Contribution", key=abs, ascending=False)
         top_n = 8
         top_stocks = df_sorted.head(top_n).copy()
@@ -374,12 +367,10 @@ def render_live_market_data():
 
         chart_labels = list(top_stocks["Symbol"]) + ["OTHERS"]
         chart_values = list(top_stocks["Contribution"].abs()) + [abs(others_contrib)]
-        
         chart_colors = [
             "#34d399" if c >= 0 else "#f87171" 
             for c in list(top_stocks["Contribution"]) + [others_contrib]
         ]
-        
         custom_text = [
             f"{row['Symbol']}: {row['Contribution']:+.2f}" for _, row in top_stocks.iterrows()
         ] + [f"OTHERS: {others_contrib:+.2f}"]
@@ -415,37 +406,43 @@ def render_live_market_data():
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with col_list:
+    with col_split:
         st.markdown("<div class='section-container'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px;'>📋 Full List Contribution Stream</h3>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;'>All 50 constituents ranked by point impact</p>", unsafe_allow_html=True)
+        st.markdown("<h3 style='font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px;'>📊 Contribution Matrix Breakdown</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;'>Top positive gainers vs negative drags</p>", unsafe_allow_html=True)
 
-        # Scrollable container for all 50 stocks matching the reference style
-        st.markdown("<div style='max-height: 310px; overflow-y: auto; padding-right: 4px;'>", unsafe_allow_html=True)
-        
-        df_full_sorted = df_result.sort_values(by="Contribution", ascending=False)
-        max_abs_contrib = max(abs(df_full_sorted["Contribution"].max()), abs(df_full_sorted["Contribution"].min()), 1.0)
+        # Internal Sub-Columns for Reference Match (Gainers Left, Losers Right)
+        sub_col1, sub_col2 = st.columns(2, gap="small")
 
-        for _, row in df_full_sorted.iterrows():
-            sym = row["Symbol"]
-            contrib = row["Contribution"]
-            color = "#34d399" if contrib >= 0 else "#f87171"
-            sign = "+" if contrib >= 0 else ""
-            
-            # Proportional mini visual bar width
-            bar_width = int((abs(contrib) / max_abs_contrib) * 90)
-            
-            st.markdown(f"""
-            <div class="contrib-row">
-                <span style="font-weight: 700; color: #f1f5f9; width: 110px;">{sym}</span>
-                <span style="font-weight: 700; color: {color}; width: 80px; text-align: right;">{sign}{contrib:.2f}</span>
-                <div style="flex-grow: 1; margin-left: 16px; background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; display: flex; justify-content: {'flex-start' if contrib >= 0 else 'flex-end'};">
-                    <div style="width: {bar_width}%; background: {color}; height: 100%; border-radius: 4px;"></div>
+        gainers_df = df_result[df_result["Contribution"] > 0].sort_values(by="Contribution", ascending=False).head(10)
+        losers_df = df_result[df_result["Contribution"] < 0].sort_values(by="Contribution", ascending=True).head(10)
+
+        with sub_col1:
+            st.markdown("<div style='max-height: 290px; overflow-y: auto; padding-right: 2px;'>", unsafe_allow_html=True)
+            for _, row in gainers_df.iterrows():
+                sym = row["Symbol"]
+                contrib = row["Contribution"]
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.8rem;">
+                    <span style="font-weight: 700; color: #f1f5f9; width: 65px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{sym}">{sym}</span>
+                    <span style="font-weight: 700; color: #34d399; width: 45px; text-align: right;">+{contrib:.2f}</span>
                 </div>
-            </div>
-            """, unsafe_allow_html=True)
-            
-        st.markdown("</div>", unsafe_allow_html=True)
+                """, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
+        with sub_col2:
+            st.markdown("<div style='max-height: 290px; overflow-y: auto; padding-left: 2px;'>", unsafe_allow_html=True)
+            for _, row in losers_df.iterrows():
+                sym = row["Symbol"]
+                contrib = row["Contribution"]
+                st.markdown(f"""
+                <div style="display: flex; align-items: center; justify-content: space-between; padding: 6px 4px; border-bottom: 1px solid rgba(255,255,255,0.04); font-size: 0.8rem;">
+                    <span style="font-weight: 700; color: #f87171; width: 45px; text-align: left;">{contrib:.2f}</span>
+                    <span style="font-weight: 700; color: #f1f5f9; width: 65px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{sym}">{sym}</span>
+                </div>
+                """, unsafe_allow_html=True)
+            st.markdown("</div>", unsafe_allow_html=True)
+
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
@@ -469,7 +466,6 @@ def render_live_market_data():
 
     st.dataframe(styled_df, use_container_width=True, height=380)
     
-    # India Standard Time (IST) Timestamp
     ist_zone = pytz.timezone('Asia/Kolkata')
     ist_time = datetime.now(ist_zone).strftime('%d-%m-%Y | %I:%M:%S %p IST')
     
@@ -479,5 +475,4 @@ def render_live_market_data():
         </div>
     """, unsafe_allow_html=True)
 
-# Execute the live fragment loop
 render_live_market_data()
