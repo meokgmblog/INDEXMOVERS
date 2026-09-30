@@ -6,60 +6,86 @@ import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Nifty 50 Executive Terminal",
-    page_icon="📈",
+    page_title="Nifty 50 Pro Command Center",
+    page_icon="⚡",
     layout="wide"
 )
 
-# --- PROFESSIONAL HIGH-CONTRAST FINANCIAL THEME STYLING ---
+# --- ULTRA-MODERN PREMIUM FINTECH UI STYLING ---
 st.markdown("""
 <style>
-    /* Global App Background & High-Contrast Font */
+    /* Global Background & Typography */
     .stApp {
-        background-color: #0d1117;
-        color: #f0f6fc;
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        background: linear-gradient(135deg, #090d16 0%, #0d1424 50%, #05080f 100%);
+        color: #f8fafc;
+        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
     }
     
-    /* Clean Terminal Card Container */
-    .terminal-card {
-        background-color: #161b22;
-        border: 1px solid #30363d;
-        border-radius: 10px;
-        padding: 20px;
-        margin-bottom: 16px;
+    /* Hide default streamlit elements if desired */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    
+    /* Glassmorphism Metric Containers */
+    .metric-card-container {
+        background: rgba(23, 32, 51, 0.75);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 16px;
+        padding: 20px 24px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+        position: relative;
+        overflow: hidden;
+    }
+    .metric-card-container::before {
+        content: '';
+        position: absolute;
+        top: 0; left: 0; width: 4px; height: 100%;
+        background: linear-gradient(to bottom, #3b82f6, #1d4ed8);
     }
     
     /* Headings */
     h1, h2, h3 {
         color: #ffffff !important;
-        font-weight: 600;
+        font-weight: 700;
+        letter-spacing: -0.025em;
     }
     
     /* Live Status Badge */
     .live-badge {
         display: inline-flex;
         align-items: center;
-        background-color: rgba(35, 134, 54, 0.2);
-        border: 1px solid #238636;
-        color: #3fb950;
-        padding: 4px 12px;
-        border-radius: 6px;
+        background: rgba(16, 185, 129, 0.15);
+        border: 1px solid rgba(16, 185, 129, 0.35);
+        color: #34d399;
+        padding: 6px 16px;
+        border-radius: 30px;
         font-size: 0.85rem;
         font-weight: 600;
-        gap: 6px;
+        gap: 8px;
+        box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
     }
     .pulse-dot {
         width: 8px;
         height: 8px;
-        background-color: #3fb950;
+        background-color: #34d399;
         border-radius: 50%;
-        animation: pulse 1.5s infinite;
+        box-shadow: 0 0 10px #34d399;
+        animation: pulse 2s infinite;
     }
     @keyframes pulse {
-        0% { opacity: 0.4; }
-        50% { opacity: 1; }
-        100% { opacity: 0.4; }
+        0% { transform: scale(0.95); opacity: 0.8; }
+        50% { transform: scale(1.3); opacity: 1; }
+        100% { transform: scale(0.95); opacity: 0.8; }
+    }
+    
+    /* Custom DataFrame Container Styling */
+    div[data-testid="stDataFrame"] {
+        background: rgba(17, 24, 39, 0.6);
+        border: 1px solid rgba(255, 255, 255, 0.08);
+        border-radius: 14px;
+        padding: 8px;
+        backdrop-filter: blur(12px);
     }
 </style>
 """, unsafe_allow_html=True)
@@ -148,12 +174,12 @@ def fetch_market_data(keys, token):
 # --- HEADER SECTION ---
 col_head1, col_head2 = st.columns([3, 1])
 with col_head1:
-    st.title("📈 Nifty 50 Executive Terminal")
-    st.markdown("Real-time component telemetry and market breadth analysis.")
+    st.title("⚡ Nifty 50 Pro Command Center")
+    st.markdown("<p style='color: #94a3b8; font-size: 1.05rem;'>Real-time component telemetry and market breadth analysis.</p>", unsafe_allow_html=True)
 with col_head2:
     st.markdown("<div style='text-align: right; padding-top: 15px;'><span class='live-badge'><span class='pulse-dot'></span> Silent Feed Active</span></div>", unsafe_allow_html=True)
 
-st.markdown("---")
+st.markdown("<br>", unsafe_allow_html=True)
 
 # --- AUTO-REFRESHING LIVE FRAGMENT (Silent background polling every 10 seconds) ---
 @st.fragment(run_every=10)
@@ -227,7 +253,7 @@ def render_live_market_data():
         
     df_result = pd.DataFrame(rows)
 
-    # --- TOP METRICS ROW (3 Columns now) ---
+    # --- TOP METRICS ROW ---
     m1, m2, m3 = st.columns(3)
     
     with m1:
@@ -245,14 +271,15 @@ def render_live_market_data():
     with m3:
         st.metric(label="🔻 Market Losers", value=f"{losers_count} Stocks", delta=f"-{losers_count}" if losers_count > 0 else "0", delta_color="inverse")
 
-    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
 
     # --- DATAFRAME VIEW ---
-    st.subheader("📋 Nifty 50 Constituents Real-Time Matrix")
+    st.markdown("### 📋 Nifty 50 Constituents Real-Time Matrix")
+    st.markdown("<p style='color: #94a3b8; font-size: 0.9rem; margin-top: -10px;'>Live component tracking, valuation weights, and price variance.</p>", unsafe_allow_html=True)
     
     def style_change(val):
-        color = "#3fb950" if val > 0 else "#f85149" if val < 0 else "#8b949e"
-        return f"color: {color}; font-weight: 600;"
+        color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#94a3b8"
+        return f"color: {color}; font-weight: 700; background-color: rgba({'52, 211, 153' if val > 0 else '248, 113, 113' if val < 0 else '148, 163, 184'}, 0.08); border-radius: 4px; padding: 4px;"
 
     styled_df = df_result.style.format({
         "Weight (%)": "{:.2f}%",
@@ -264,7 +291,8 @@ def render_live_market_data():
     st.dataframe(styled_df, use_container_width=True, height=520)
     
     # Last updated timestamp footer
-    st.caption(f"Last synchronized: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} | Auto-refreshes silently every 10 seconds")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.caption(f"🟢 Synchronized live at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} | Auto-refreshes silently every 10 seconds.")
 
 # Execute the live fragment loop
 render_live_market_data()
