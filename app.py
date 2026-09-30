@@ -34,9 +34,9 @@ st.markdown("""
     /* Executive Header Container */
     .exec-header {
         background: linear-gradient(135deg, rgba(20, 24, 38, 0.85) 0%, rgba(10, 13, 20, 0.95) 100%);
-        backdrop-filter: blur(20px);
+        backdrop-filter: blur(10px);
         -webkit-backdrop-filter: blur(20px);
-        border: 1px solid rgba(255, 255, 255, 0.07);
+        border: 2px solid rgba(255, 255, 255, 0.07);
         border-radius: 20px;
         padding: 28px 36px;
         box-shadow: 0 24px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
