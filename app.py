@@ -266,7 +266,6 @@ def render_live_market_data():
     nifty_ltp = nifty_quote.get('last_price', 0.0) if nifty_quote else 0.0
     nifty_pct = nifty_quote.get('net_change_percentage', 0.0) if nifty_quote else 0.0
     
-    # First pass: collect raw data and preliminary contributions
     temp_rows = []
     gainers_count = 0
     losers_count = 0
@@ -297,7 +296,8 @@ def render_live_market_data():
         elif pct_change < 0:
             losers_count += 1
             
-        raw_contrib = nifty_ltp * (weight / 100.0) * (pct_change / 100.0) if nifty_ltp > 0 else 0.0
+        # Enhanced precision proxy formula utilizing absolute price change and weight ratio
+        raw_contrib = (net_chg * (weight / 100.0) * (nifty_ltp / ltp)) if (ltp > 0 and nifty_ltp > 0) else 0.0
             
         temp_rows.append({
             "Symbol": sym,
@@ -309,8 +309,7 @@ def render_live_market_data():
             "RawContribution": raw_contrib
         })
         
-    # --- NORMALIZATION FIX ---
-    # Scale contributions so their sum precisely equals nifty_net (the actual index net change)
+    # --- STRICT NORMALIZATION ---
     sum_raw_contrib = sum(r["RawContribution"] for r in temp_rows)
     scaling_factor = (nifty_net / sum_raw_contrib) if sum_raw_contrib != 0 and nifty_net != 0 else 1.0
 
