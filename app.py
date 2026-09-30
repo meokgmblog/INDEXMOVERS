@@ -51,7 +51,7 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         background: rgba(16, 185, 129, 0.08);
-        border: 1px solid rgba(16, 185, 129, 0.3);
+        border: 2px solid rgba(16, 185, 129, 0.3);
         color: #34d399;
         padding: 7px 16px;
         border-radius: 30px;
@@ -106,7 +106,7 @@ st.markdown("""
     .terminal-footer {
         text-align: center;
         color: #64748b;
-        font-size: 0.8rem;
+        font-size: 1.8rem;
         margin-top: 24px;
         font-weight: 500;
         letter-spacing: 0.03em;
