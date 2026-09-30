@@ -296,7 +296,8 @@ def render_live_market_data():
         elif pct_change < 0:
             losers_count += 1
             
-        est_contrib = round((pct_change / 100.0) * weight * (nifty_ltp / 100.0) * 0.15, 2) if nifty_ltp > 0 else 0.0
+        # Correct index points contribution based on weightage and percentage change
+        est_contrib = nifty_ltp * (weight / 100.0) * (pct_change / 100.0) if nifty_ltp > 0 else 0.0
             
         rows.append({
             "Symbol": sym,
@@ -352,7 +353,7 @@ def render_live_market_data():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- TWO-COLUMN LAYOUT: DONUT CHART & REFERENCE STYLE MATRIX BREAKDOWN ---
+    # --- TWO-COLUMN LAYOUT: DONUT CHART & NIFTY POINTS CONTRIBUTION MATRIX ---
     col_chart, col_matrix = st.columns([1, 1], gap="medium")
 
     with col_chart:
@@ -408,12 +409,26 @@ def render_live_market_data():
 
     with col_matrix:
         st.markdown("<div class='section-container'>", unsafe_allow_html=True)
-        st.markdown("<h3 style='font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px;'>📊 Contribution Matrix Breakdown</h3>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;'>Top positive gainers vs negative drags</p>", unsafe_allow_html=True)
-
+        
         gainers_df = df_result[df_result["Contribution"] > 0].sort_values(by="Contribution", ascending=False).reset_index(drop=True)
         losers_df = df_result[df_result["Contribution"] < 0].sort_values(by="Contribution", ascending=True).reset_index(drop=True)
 
+        total_gainer_pts = gainers_df["Contribution"].sum() if not gainers_df.empty else 0.0
+        total_loser_pts = losers_df["Contribution"].sum() if not losers_df.empty else 0.0
+
+        # Header matching reference image with total positive and negative points
+        st.markdown(f"""
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin: 0;">NIFTY Points Contribution</h3>
+            <div>
+                <span style="color: #34d399; font-weight: 700; margin-right: 12px; font-size: 0.95rem;">+{total_gainer_pts:.2f}</span>
+                <span style="color: #f87171; font-weight: 700; font-size: 0.95rem;">{total_loser_pts:.2f}</span>
+            </div>
+        </div>
+        """, unsafe_allow_html=True)
+
+        max_gainer_abs = gainers_df["Contribution"].abs().max() if not gainers_df.empty else 1.0
+        max_loser_abs = losers_df["Contribution"].abs().max() if not losers_df.empty else 1.0
         max_len = max(len(gainers_df), len(losers_df))
 
         st.markdown("<div style='max-height: 290px; overflow-y: auto; padding-right: 4px;'>", unsafe_allow_html=True)
@@ -421,16 +436,29 @@ def render_live_market_data():
         for i in range(max_len):
             g_sym = gainers_df.loc[i, "Symbol"] if i < len(gainers_df) else ""
             g_val = f"+{gainers_df.loc[i, 'Contribution']:.2f}" if i < len(gainers_df) else ""
+            g_pct = (gainers_df.loc[i, 'Contribution'] / max_gainer_abs) * 100 if i < len(gainers_df) else 0
             
             l_sym = losers_df.loc[i, "Symbol"] if i < len(losers_df) else ""
             l_val = f"{losers_df.loc[i, 'Contribution']:.2f}" if i < len(losers_df) else ""
+            l_pct = (abs(losers_df.loc[i, 'Contribution']) / max_loser_abs) * 100 if i < len(losers_df) else 0
             
             st.markdown(f"""
             <div class="matrix-row">
-                <span style="font-weight: 700; color: #f1f5f9; width: 95px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{g_sym}">{g_sym}</span>
-                <span style="font-weight: 700; color: #34d399; width: 55px; text-align: right;">{g_val}</span>
-                <span style="font-weight: 700; color: #f87171; width: 55px; text-align: right;">{l_val}</span>
-                <span style="font-weight: 700; color: #f1f5f9; width: 95px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{l_sym}">{l_sym}</span>
+                <div style="display: flex; align-items: center; width: 48%; justify-content: flex-start; gap: 6px;">
+                    <span style="font-weight: 700; color: #f1f5f9; width: 75px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{g_sym}">{g_sym}</span>
+                    <span style="font-weight: 700; color: #34d399; width: 50px; text-align: left;">{g_val}</span>
+                    <div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-end;">
+                        <div style="width: {g_pct}%; background: #34d399; height: 100%; border-radius: 3px;"></div>
+                    </div>
+                </div>
+                
+                <div style="display: flex; align-items: center; width: 48%; justify-content: flex-end; gap: 6px;">
+                    <div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-start;">
+                        <div style="width: {l_pct}%; background: #f87171; height: 100%; border-radius: 3px;"></div>
+                    </div>
+                    <span style="font-weight: 700; color: #f87171; width: 50px; text-align: right;">{l_val}</span>
+                    <span style="font-weight: 700; color: #f1f5f9; width: 75px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{l_sym}">{l_sym}</span>
+                </div>
             </div>
             """, unsafe_allow_html=True)
 
