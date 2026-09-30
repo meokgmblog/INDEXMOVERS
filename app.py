@@ -352,7 +352,7 @@ def render_live_market_data():
     
     st.markdown(f"""
         <div class="terminal-footer">
-            ⚡ Synchronized live at {ist_time} &nbsp;&bull;&nbsp; Auto-refreshes silently every 10 seconds
+            ⚡ Synchronized live at {ist_time} &nbsp;&bull;&nbsp; 
         </div>
     """, unsafe_allow_html=True)
 
