@@ -108,7 +108,7 @@ st.markdown("""
         display: flex;
         align-items: center;
         justify-content: space-between;
-        padding: 7px 8px;
+        padding: 7px 4px;
         border-bottom: 1px solid rgba(255, 255, 255, 0.04);
         font-size: 0.82rem;
     }
@@ -296,7 +296,7 @@ def render_live_market_data():
         elif pct_change < 0:
             losers_count += 1
             
-        # Correct index points contribution based on weightage and percentage change
+        # Index points contribution calculation based on weightage and percentage change
         est_contrib = nifty_ltp * (weight / 100.0) * (pct_change / 100.0) if nifty_ltp > 0 else 0.0
             
         rows.append({
@@ -416,12 +416,11 @@ def render_live_market_data():
         total_gainer_pts = gainers_df["Contribution"].sum() if not gainers_df.empty else 0.0
         total_loser_pts = losers_df["Contribution"].sum() if not losers_df.empty else 0.0
 
-        # Header matching reference image with total positive and negative points
         st.markdown(f"""
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h3 style="font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin: 0;">NIFTY Points Contribution</h3>
             <div>
-                <span style="color: #34d399; font-weight: 700; margin-right: 12px; font-size: 0.95rem;">+{total_gainer_pts:.2f}</span>
+                <span style="color: #34d399; font-weight: 700; margin-right: 12px; font-size: 0.95Name;">+{total_gainer_pts:.2f}</span>
                 <span style="color: #f87171; font-weight: 700; font-size: 0.95rem;">{total_loser_pts:.2f}</span>
             </div>
         </div>
@@ -444,7 +443,7 @@ def render_live_market_data():
             
             st.markdown(f"""
             <div class="matrix-row">
-                <div style="display: flex; align-items: center; width: 48%; justify-content: flex-start; gap: 6px;">
+                <div style="display: flex; align-items: center; width: 49%; justify-content: flex-start; gap: 6px;">
                     <span style="font-weight: 700; color: #f1f5f9; width: 75px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{g_sym}">{g_sym}</span>
                     <span style="font-weight: 700; color: #34d399; width: 50px; text-align: left;">{g_val}</span>
                     <div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-end;">
@@ -452,7 +451,7 @@ def render_live_market_data():
                     </div>
                 </div>
                 
-                <div style="display: flex; align-items: center; width: 48%; justify-content: flex-end; gap: 6px;">
+                <div style="display: flex; align-items: center; width: 49%; justify-content: flex-end; gap: 6px;">
                     <div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-start;">
                         <div style="width: {l_pct}%; background: #f87171; height: 100%; border-radius: 3px;"></div>
                     </div>
