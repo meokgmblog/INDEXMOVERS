@@ -335,7 +335,7 @@ def render_live_market_data():
     def style_change(val):
         color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#94a3b8"
         bg_color = "rgba(52, 211, 153, 0.08)" if val > 0 else "rgba(248, 113, 113, 0.08)" if val < 0 else "rgba(148, 163, 184, 0.08)"
-        return f"color: {color}; font-weight: 700; background-color: {bg_color}; border-radius: 4px; padding: 2px 6px;"
+        return f"color: {color}; font-weight: 1700; background-color: {bg_color}; border-radius: 4px; padding: 2px 6px;"
 
     styled_df = df_result.style.format({
         "Weight (%)": "{:.2f}%",
