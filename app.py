@@ -5,6 +5,7 @@ import urllib.parse
 import time
 from datetime import datetime
 import pytz
+import plotly.graph_objects as go
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -34,9 +35,9 @@ st.markdown("""
     /* Executive Header Container */
     .exec-header {
         background: linear-gradient(135deg, rgba(20, 24, 38, 0.85) 0%, rgba(10, 13, 20, 0.95) 100%);
-        backdrop-filter: blur(10px);
+        backdrop-filter: blur(20px);
         -webkit-backdrop-filter: blur(20px);
-        border: 2px solid rgba(255, 255, 255, 0.07);
+        border: 1px solid rgba(255, 255, 255, 0.07);
         border-radius: 20px;
         padding: 28px 36px;
         box-shadow: 0 24px 50px rgba(0, 0, 0, 0.7), inset 0 1px 0 rgba(255, 255, 255, 0.1);
@@ -51,7 +52,7 @@ st.markdown("""
         display: inline-flex;
         align-items: center;
         background: rgba(16, 185, 129, 0.08);
-        border: 2px solid rgba(16, 185, 129, 0.3);
+        border: 1px solid rgba(16, 185, 129, 0.3);
         color: #34d399;
         padding: 7px 16px;
         border-radius: 30px;
@@ -90,6 +91,17 @@ st.markdown("""
         transform: translateY(-3px);
         border-color: rgba(99, 102, 241, 0.4);
         box-shadow: 0 15px 35px rgba(99, 102, 241, 0.15);
+    }
+
+    /* Section Container for Visual Balance */
+    .section-container {
+        background: linear-gradient(145deg, rgba(18, 22, 33, 0.6) 0%, rgba(11, 14, 22, 0.7) 100%);
+        backdrop-filter: blur(16px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 20px;
+        padding: 24px;
+        box-shadow: 0 12px 40px rgba(0,0,0,0.5);
+        height: 100%;
     }
 
     /* Compact Table Wrapper Styling */
@@ -241,8 +253,11 @@ def render_live_market_data():
 
     # 1. Extract Nifty Index Quote
     nifty_quote = lookup_map.get("NSE_INDEX|Nifty 50") or lookup_map.get("NSE_INDEX:Nifty 50")
+    nifty_net = nifty_quote.get('net_change', 0.0) if nifty_quote else 0.0
+    nifty_ltp = nifty_quote.get('last_price', 0.0) if nifty_quote else 0.0
+    nifty_pct = nifty_quote.get('net_change_percentage', 0.0) if nifty_quote else 0.0
     
-    # 2. Build Stock Rows & calculate market breadth
+    # 2. Build Stock Rows & Calculate Contributions
     rows = []
     gainers_count = 0
     losers_count = 0
@@ -273,32 +288,33 @@ def render_live_market_data():
         elif pct_change < 0:
             losers_count += 1
             
+        # Estimated point contribution to Nifty
+        est_contrib = round((pct_change / 100.0) * weight * (nifty_ltp / 100.0) * 0.15, 2) if nifty_ltp > 0 else 0.0
+            
         rows.append({
             "Symbol": sym,
             "Instrument Key": key,
             "Weight (%)": weight,
             "LTP (₹)": ltp,
             "Prev Close (₹)": close,
-            "Change (%)": pct_change
+            "Change (%)": pct_change,
+            "Contribution": est_contrib
         })
         
     df_result = pd.DataFrame(rows)
 
-    # --- TOP METRICS GRID (Custom HTML Cards) ---
+    # --- TOP METRICS GRID ---
     m1, m2, m3 = st.columns(3)
     
     with m1:
         if nifty_quote:
-            n_ltp = nifty_quote.get('last_price', 0.0)
-            n_net = nifty_quote.get('net_change', 0.0)
-            n_pct = nifty_quote.get('net_change_percentage', 0.0)
-            color_hex = "#34d399" if n_net >= 0 else "#f87171"
-            sign_str = "+" if n_net >= 0 else ""
+            color_hex = "#34d399" if nifty_net >= 0 else "#f87171"
+            sign_str = "+" if nifty_net >= 0 else ""
             st.markdown(f"""
             <div class="exec-card">
                 <div style="font-size: 0.75rem; color: #94a3b8; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;">📊 Nifty 50 Index</div>
-                <div style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin-top: 6px; letter-spacing: -0.02em;">{n_ltp:,.2f}</div>
-                <div style="font-size: 0.85rem; font-weight: 700; color: {color_hex}; margin-top: 4px;">{sign_str}{n_net:,.2f} ({sign_str}{n_pct:.2f}%)</div>
+                <div style="font-size: 1.85rem; font-weight: 800; color: #ffffff; margin-top: 6px; letter-spacing: -0.02em;">{nifty_ltp:,.2f}</div>
+                <div style="font-size: 0.85rem; font-weight: 700; color: {color_hex}; margin-top: 4px;">{sign_str}{nifty_net:,.2f} ({sign_str}{nifty_pct:.2f}%)</div>
             </div>
             """, unsafe_allow_html=True)
         else:
@@ -329,19 +345,89 @@ def render_live_market_data():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
+    # --- TWO-COLUMN LAYOUT: DONUT CHART & PLACEHOLDER ---
+    col_chart, col_placeholder = st.columns([1, 1], gap="medium")
+
+    with col_chart:
+        st.markdown("<div class='section-container'>", unsafe_allow_html=True)
+        st.markdown("<h3 style='font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px;'>🎯 Index Points Contribution</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;'>Constituent impact breakdown on Nifty 50 movement</p>", unsafe_allow_html=True)
+
+        # Prepare Data for Donut Chart
+        df_sorted = df_result.sort_values(by="Contribution", key=abs, ascending=False)
+        top_n = 8
+        top_stocks = df_sorted.head(top_n).copy()
+        others_contrib = df_sorted.iloc[top_n:]["Contribution"].sum()
+
+        chart_labels = list(top_stocks["Symbol"]) + ["OTHERS"]
+        chart_values = list(top_stocks["Contribution"].abs()) + [abs(others_contrib)]
+        
+        # Colors: Green for positive contribution, Red for negative contribution
+        chart_colors = [
+            "#34d399" if c >= 0 else "#f87171" 
+            for c in list(top_stocks["Contribution"]) + [others_contrib]
+        ]
+        
+        # Custom hover/text labels
+        custom_text = [
+            f"{row['Symbol']}: {row['Contribution']:+.2f}" for _, row in top_stocks.iterrows()
+        ] + [f"OTHERS: {others_contrib:+.2f}"]
+
+        fig = go.Figure(data=[go.Pie(
+            labels=chart_labels,
+            values=chart_values,
+            hole=0.62,
+            marker=dict(colors=chart_colors, line=dict(color='#0b0e16', width=2)),
+            textinfo='label+percent',
+            textfont=dict(color='#f1f5f9', family='Outfit', size=11),
+            hoverinfo='text',
+            hovertext=custom_text
+        )])
+
+        sign_char = "+" if nifty_net >= 0 else ""
+        center_color = "#34d399" if nifty_net >= 0 else "#f87171"
+
+        fig.update_layout(
+            showlegend=False,
+            paper_bgcolor='rgba(0,0,0,0)',
+            plot_bgcolor='rgba(0,0,0,0)',
+            margin=dict(t=10, b=10, l=10, r=10),
+            height=320,
+            annotations=[dict(
+                text=f"<b>NIFTY 50</b><br><span style='color:{center_color}; font-size:14px;'>{sign_char}{nifty_net:.2f} pts</span>",
+                x=0.5, y=0.5,
+                font=dict(size=13, color='#ffffff', family='Outfit'),
+                showarrow=False
+            )]
+        )
+
+        st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col_placeholder:
+        st.markdown("<div class='section-container' style='display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 380px;'>", unsafe_allow_html=True)
+        st.markdown("<div style='font-size: 2.5rem; margin-bottom: 12px;'>🔮</div>", unsafe_allow_html=True)
+        st.markdown("<h3 style='font-size: 1.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 6px;'>Reserved Analytics Module</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 0.85rem; color: #94a3b8; max-width: 280px;'>This panel is locked and ready. Tell me what widget, chart, or metrics table you want placed here next!</p>", unsafe_allow_html=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("<br>", unsafe_allow_html=True)
+
     # --- DATAFRAME VIEW ---
     st.markdown("<h3 style='font-size: 1.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 12px;'>📋 Constituents Live Telemetry</h3>", unsafe_allow_html=True)
     
     def style_change(val):
         color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#94a3b8"
         bg_color = "rgba(52, 211, 153, 0.08)" if val > 0 else "rgba(248, 113, 113, 0.08)" if val < 0 else "rgba(148, 163, 184, 0.08)"
-        return f"color: {color}; font-weight: 1700; background-color: {bg_color}; border-radius: 4px; padding: 2px 6px;"
+        return f"color: {color}; font-weight: 700; background-color: {bg_color}; border-radius: 4px; padding: 2px 6px;"
 
-    styled_df = df_result.style.format({
+    display_df = df_result[["Symbol", "Instrument Key", "Weight (%)", "LTP (₹)", "Prev Close (₹)", "Change (%)", "Contribution"]]
+    styled_df = display_df.style.format({
         "Weight (%)": "{:.2f}%",
         "LTP (₹)": "₹{:,.2f}",
         "Prev Close (₹)": "₹{:,.2f}",
-        "Change (%)": "{:+.2f}%"
+        "Change (%)": "{:+.2f}%",
+        "Contribution": "{:+.2f}"
     }).map(style_change, subset=["Change (%)"])
 
     st.dataframe(styled_df, use_container_width=True, height=380)
@@ -352,7 +438,7 @@ def render_live_market_data():
     
     st.markdown(f"""
         <div class="terminal-footer">
-            ⚡ Synchronized live at {ist_time} &nbsp;&bull;&nbsp; 
+            ⚡ Synchronized live at {ist_time} &nbsp;&bull;&nbsp; Auto-refreshes silently every 10 seconds
         </div>
     """, unsafe_allow_html=True)
 
