@@ -3,8 +3,7 @@ import pandas as pd
 import requests
 import urllib.parse
 import time
-from datetime import datetime
-import pytz
+from datetime import datetime, timezone, timedelta
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
@@ -322,12 +321,12 @@ def render_live_market_data():
         "Change (%)": "{:+.2f}%"
     }).map(style_change, subset=["Change (%)"])
 
-    # Reduced height for a compact, clean look avoiding oversized tables
+    # Compact height to prevent oversize scrolling
     st.dataframe(styled_df, use_container_width=True, height=380)
     
-    # India Standard Time (IST) Timestamp
-    ist_zone = pytz.timezone('Asia/Kolkata')
-    ist_time = datetime.now(ist_zone).strftime('%d-%m-%Y | %I:%M:%S %p IST')
+    # India Standard Time (IST) Timestamp using standard library offsets (+5:30)
+    IST = timezone(timedelta(hours=5, minutes=30))
+    ist_time = datetime.now(IST).strftime('%d-%m-%Y | %I:%M:%S %p IST')
     
     st.markdown(f"""
         <div class="terminal-footer">
