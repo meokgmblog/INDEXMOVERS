@@ -115,15 +115,6 @@ st.markdown("""
     .matrix-row:hover {
         background: rgba(255, 255, 255, 0.02);
     }
-
-    div[data-testid="stDataFrame"] {
-        background: rgba(13, 17, 26, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 16px;
-        padding: 6px;
-        backdrop-filter: blur(16px);
-        box-shadow: 0 12px 40px rgba(0,0,0,0.6);
-    }
     
     .terminal-footer {
         text-align: center;
@@ -470,27 +461,6 @@ def render_live_market_data():
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-
-    # --- DATAFRAME VIEW ---
-    st.markdown("<h3 style='font-size: 1.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 12px;'>📋 Constituents Live Telemetry</h3>", unsafe_allow_html=True)
-    
-    def style_change(val):
-        color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#94a3b8"
-        bg_color = "rgba(52, 211, 153, 0.08)" if val > 0 else "rgba(248, 113, 113, 0.08)" if val < 0 else "rgba(148, 163, 184, 0.08)"
-        return f"color: {color}; font-weight: 700; background-color: {bg_color}; border-radius: 4px; padding: 2px 6px;"
-
-    display_df = df_result[["Symbol", "Instrument Key", "Weight (%)", "LTP (₹)", "Prev Close (₹)", "Change (%)", "Contribution"]]
-    styled_df = display_df.style.format({
-        "Weight (%)": "{:.2f}%",
-        "LTP (₹)": "₹{:,.2f}",
-        "Prev Close (₹)": "₹{:,.2f}",
-        "Change (%)": "{:+.2f}%",
-        "Contribution": "{:+.2f}"
-    }).map(style_change, subset=["Change (%)"])
-
-    st.dataframe(styled_df, use_container_width=True, height=380)
-    
     ist_zone = pytz.timezone('Asia/Kolkata')
     ist_time = datetime.now(ist_zone).strftime('%d-%m-%Y | %I:%M:%S %p IST')
     
