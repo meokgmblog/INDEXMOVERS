@@ -266,7 +266,8 @@ def render_live_market_data():
     nifty_ltp = nifty_quote.get('last_price', 0.0) if nifty_quote else 0.0
     nifty_pct = nifty_quote.get('net_change_percentage', 0.0) if nifty_quote else 0.0
     
-    rows = []
+    # First pass: collect raw data and preliminary contributions
+    temp_rows = []
     gainers_count = 0
     losers_count = 0
     
@@ -296,17 +297,34 @@ def render_live_market_data():
         elif pct_change < 0:
             losers_count += 1
             
-        # Index points contribution calculation based on weightage and percentage change
-        est_contrib = nifty_ltp * (weight / 100.0) * (pct_change / 100.0) if nifty_ltp > 0 else 0.0
+        raw_contrib = nifty_ltp * (weight / 100.0) * (pct_change / 100.0) if nifty_ltp > 0 else 0.0
             
-        rows.append({
+        temp_rows.append({
             "Symbol": sym,
             "Instrument Key": key,
             "Weight (%)": weight,
             "LTP (₹)": ltp,
             "Prev Close (₹)": close,
             "Change (%)": pct_change,
-            "Contribution": est_contrib
+            "RawContribution": raw_contrib
+        })
+        
+    # --- NORMALIZATION FIX ---
+    # Scale contributions so their sum precisely equals nifty_net (the actual index net change)
+    sum_raw_contrib = sum(r["RawContribution"] for r in temp_rows)
+    scaling_factor = (nifty_net / sum_raw_contrib) if sum_raw_contrib != 0 and nifty_net != 0 else 1.0
+
+    rows = []
+    for r in temp_rows:
+        calibrated_contrib = r["RawContribution"] * scaling_factor
+        rows.append({
+            "Symbol": r["Symbol"],
+            "Instrument Key": r["Instrument Key"],
+            "Weight (%)": r["Weight (%)"],
+            "LTP (₹)": r["LTP (₹)"],
+            "Prev Close (₹)": r["Prev Close (₹)"],
+            "Change (%)": r["Change (%)"],
+            "Contribution": calibrated_contrib
         })
         
     df_result = pd.DataFrame(rows)
@@ -441,7 +459,6 @@ def render_live_market_data():
             l_val = f"{losers_df.loc[i, 'Contribution']:.2f}" if i < len(losers_df) else ""
             l_pct = (abs(losers_df.loc[i, 'Contribution']) / max_loser_abs) * 100 if i < len(losers_df) else 0
             
-            # Flattened single-line HTML string prevents Streamlit from interpreting it as a code block
             row_html = f'<div class="matrix-row"><div style="display: flex; align-items: center; width: 49%; justify-content: flex-start; gap: 6px;"><span style="font-weight: 700; color: #f1f5f9; width: 75px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{g_sym}">{g_sym}</span><span style="font-weight: 700; color: #34d399; width: 50px; text-align: left;">{g_val}</span><div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-end;"><div style="width: {g_pct}%; background: #34d399; height: 100%; border-radius: 3px;"></div></div></div><div style="display: flex; align-items: center; width: 49%; justify-content: flex-end; gap: 6px;"><div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-start;"><div style="width: {l_pct}%; background: #f87171; height: 100%; border-radius: 3px;"></div></div><span style="font-weight: 700; color: #f87171; width: 50px; text-align: right;">{l_val}</span><span style="font-weight: 700; color: #f1f5f9; width: 75px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{l_sym}">{l_sym}</span></div></div>'
             st.markdown(row_html, unsafe_allow_html=True)
 
