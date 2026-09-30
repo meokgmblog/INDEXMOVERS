@@ -3,89 +3,118 @@ import pandas as pd
 import requests
 import urllib.parse
 import time
+from datetime import datetime
+import pytz
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Nifty 50 Pro Command Center",
-    page_icon="⚡",
+    page_title="Nifty 50 Quantum Terminal",
+    page_icon="🔮",
     layout="wide"
 )
 
-# --- ULTRA-MODERN PREMIUM FINTECH UI STYLING ---
+# --- FRESH HOLOGRAPHIC & ANIMATED FINTECH UI STYLING ---
 st.markdown("""
 <style>
-    /* Global Background & Typography */
+    /* Import Google Font */
+    @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
+
+    /* Global Theme */
     .stApp {
-        background: linear-gradient(135deg, #090d16 0%, #0d1424 50%, #05080f 100%);
+        background: radial-gradient(circle at 50% 0%, #0f172a 0%, #030712 100%);
         color: #f8fafc;
-        font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+        font-family: 'Plus Jakarta Sans', sans-serif;
     }
     
-    /* Hide default streamlit elements if desired */
+    /* Hide default streamlit elements */
     #MainMenu {visibility: hidden;}
     footer {visibility: hidden;}
-    
-    /* Glassmorphism Metric Containers */
-    .metric-card-container {
-        background: rgba(23, 32, 51, 0.75);
-        backdrop-filter: blur(20px);
-        -webkit-backdrop-filter: blur(20px);
+    header {visibility: hidden;}
+
+    /* Holographic Glow Header Container */
+    .hero-header {
+        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
+        backdrop-filter: blur(24px);
+        -webkit-backdrop-filter: blur(24px);
         border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 16px;
-        padding: 20px 24px;
-        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-        position: relative;
-        overflow: hidden;
+        border-radius: 24px;
+        padding: 28px 36px;
+        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        margin-bottom: 24px;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
     }
-    .metric-card-container::before {
-        content: '';
-        position: absolute;
-        top: 0; left: 0; width: 4px; height: 100%;
-        background: linear-gradient(to bottom, #3b82f6, #1d4ed8);
-    }
-    
-    /* Headings */
-    h1, h2, h3 {
-        color: #ffffff !important;
-        font-weight: 700;
-        letter-spacing: -0.025em;
-    }
-    
-    /* Live Status Badge */
-    .live-badge {
+
+    /* Live Badge with Radar Wave Animation */
+    .live-badge-container {
         display: inline-flex;
         align-items: center;
-        background: rgba(16, 185, 129, 0.15);
-        border: 1px solid rgba(16, 185, 129, 0.35);
+        background: rgba(16, 185, 129, 0.1);
+        border: 1px solid rgba(16, 185, 129, 0.4);
         color: #34d399;
-        padding: 6px 16px;
-        border-radius: 30px;
-        font-size: 0.85rem;
-        font-weight: 600;
+        padding: 8px 16px;
+        border-radius: 50px;
+        font-size: 0.8rem;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
         gap: 8px;
-        box-shadow: 0 0 20px rgba(16, 185, 129, 0.15);
+        box-shadow: 0 0 25px rgba(16, 185, 129, 0.2);
     }
-    .pulse-dot {
-        width: 8px;
-        height: 8px;
+    .radar-wave {
+        width: 10px;
+        height: 10px;
         background-color: #34d399;
         border-radius: 50%;
-        box-shadow: 0 0 10px #34d399;
-        animation: pulse 2s infinite;
+        position: relative;
     }
-    @keyframes pulse {
-        0% { transform: scale(0.95); opacity: 0.8; }
-        50% { transform: scale(1.3); opacity: 1; }
-        100% { transform: scale(0.95); opacity: 0.8; }
+    .radar-wave::after {
+        content: '';
+        position: absolute;
+        top: -4px; left: -4px; right: -4px; bottom: -4px;
+        border: 2px solid #34d399;
+        border-radius: 50%;
+        animation: radar 2s infinite cubic-bezier(0.09, 0.57, 0.49, 0.9);
+    }
+    @keyframes radar {
+        0% { transform: scale(0.8); opacity: 1; }
+        100% { transform: scale(2.4); opacity: 0; }
+    }
+
+    /* Floating Mini Metrics Cards */
+    .metric-card {
+        background: rgba(15, 23, 42, 0.6);
+        backdrop-filter: blur(12px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 16px;
+        padding: 18px 22px;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+        transition: transform 0.2s ease, border-color 0.2s ease;
+    }
+    .metric-card:hover {
+        transform: translateY(-2px);
+        border-color: rgba(59, 130, 246, 0.4);
+    }
+
+    /* Compact Table Wrapper Styling */
+    div[data-testid="stDataFrame"] {
+        background: rgba(15, 23, 42, 0.4);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-radius: 16px;
+        padding: 4px;
+        backdrop-filter: blur(12px);
+        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
     }
     
-    /* Custom DataFrame Container Styling */
-    div[data-testid="stDataFrame"] {
-        background: rgba(17, 24, 39, 0.6);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 14px;
-        padding: 8px;
-        backdrop-filter: blur(12px);
+    /* Footer Timestamp */
+    .terminal-footer {
+        text-align: center;
+        color: #64748b;
+        font-size: 0.82rem;
+        margin-top: 20px;
+        font-weight: 500;
+        letter-spacing: 0.02em;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -171,15 +200,21 @@ def fetch_market_data(keys, token):
             pass
     return combined
 
-# --- HEADER SECTION ---
-col_head1, col_head2 = st.columns([3, 1])
-with col_head1:
-    st.title("⚡ Nifty 50 Pro Command Center")
-    st.markdown("<p style='color: #94a3b8; font-size: 1.05rem;'>Real-time component telemetry and market breadth analysis.</p>", unsafe_allow_html=True)
-with col_head2:
-    st.markdown("<div style='text-align: right; padding-top: 15px;'><span class='live-badge'><span class='pulse-dot'></span> Silent Feed Active</span></div>", unsafe_allow_html=True)
-
-st.markdown("<br>", unsafe_allow_html=True)
+# --- STYLISH HERO HEADER ---
+st.markdown("""
+<div class="hero-header">
+    <div>
+        <h1 style="margin: 0; font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, #ffffff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Nifty 50 Quantum Terminal</h1>
+        <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.95rem;">Real-time index intelligence, institutional telemetry, and market depth stream.</p>
+    </div>
+    <div>
+        <div class="live-badge-container">
+            <div class="radar-wave"></div>
+            Live Synchronized
+        </div>
+    </div>
+</div>
+""", unsafe_allow_html=True)
 
 # --- AUTO-REFRESHING LIVE FRAGMENT (Silent background polling every 10 seconds) ---
 @st.fragment(run_every=10)
@@ -253,7 +288,7 @@ def render_live_market_data():
         
     df_result = pd.DataFrame(rows)
 
-    # --- TOP METRICS ROW ---
+    # --- TOP METRICS GRID ---
     m1, m2, m3 = st.columns(3)
     
     with m1:
@@ -271,15 +306,14 @@ def render_live_market_data():
     with m3:
         st.metric(label="🔻 Market Losers", value=f"{losers_count} Stocks", delta=f"-{losers_count}" if losers_count > 0 else "0", delta_color="inverse")
 
-    st.markdown("<br><br>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- DATAFRAME VIEW ---
-    st.markdown("### 📋 Nifty 50 Constituents Real-Time Matrix")
-    st.markdown("<p style='color: #94a3b8; font-size: 0.9rem; margin-top: -10px;'>Live component tracking, valuation weights, and price variance.</p>", unsafe_allow_html=True)
+    # --- COMPACT & SLEEK DATAFRAME VIEW ---
+    st.markdown("<h3 style='font-size: 1.25rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px;'>📋 Constituents Live Telemetry</h3>", unsafe_allow_html=True)
     
     def style_change(val):
         color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#94a3b8"
-        return f"color: {color}; font-weight: 700; background-color: rgba({'52, 211, 153' if val > 0 else '248, 113, 113' if val < 0 else '148, 163, 184'}, 0.08); border-radius: 4px; padding: 4px;"
+        return f"color: {color}; font-weight: 700; background-color: rgba({'52, 211, 153' if val > 0 else '248, 113, 113' if val < 0 else '148, 163, 184'}, 0.07); border-radius: 4px; padding: 2px 6px;"
 
     styled_df = df_result.style.format({
         "Weight (%)": "{:.2f}%",
@@ -288,11 +322,18 @@ def render_live_market_data():
         "Change (%)": "{:+.2f}%"
     }).map(style_change, subset=["Change (%)"])
 
-    st.dataframe(styled_df, use_container_width=True, height=520)
+    # Reduced height for a compact, clean look avoiding oversized tables
+    st.dataframe(styled_df, use_container_width=True, height=380)
     
-    # Last updated timestamp footer
-    st.markdown("<br>", unsafe_allow_html=True)
-    st.caption(f"🟢 Synchronized live at {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} | Auto-refreshes silently every 10 seconds.")
+    # India Standard Time (IST) Timestamp
+    ist_zone = pytz.timezone('Asia/Kolkata')
+    ist_time = datetime.now(ist_zone).strftime('%d-%m-%Y | %I:%M:%S %p IST')
+    
+    st.markdown(f"""
+        <div class="terminal-footer">
+            ⚡ Synchronized live at {ist_time} &nbsp;&bull;&nbsp; Auto-refreshes silently every 10 seconds
+        </div>
+    """, unsafe_allow_html=True)
 
 # Execute the live fragment loop
 render_live_market_data()
