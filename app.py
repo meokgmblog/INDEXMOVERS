@@ -266,6 +266,12 @@ def render_live_market_data():
     nifty_ltp = nifty_quote.get('last_price', 0.0) if nifty_quote else 0.0
     nifty_pct = nifty_quote.get('net_change_percentage', 0.0) if nifty_quote else 0.0
     
+    # Fallback dynamic calculation if Nifty percentage is returned as zero by the API
+    if nifty_pct == 0.0 and nifty_ltp > 0 and nifty_net != 0:
+        nifty_prev_close = nifty_ltp - nifty_net
+        if nifty_prev_close > 0:
+            nifty_pct = round((nifty_net / nifty_prev_close) * 100, 2)
+    
     temp_rows = []
     gainers_count = 0
     losers_count = 0
