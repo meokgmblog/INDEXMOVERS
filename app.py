@@ -3,25 +3,26 @@ import pandas as pd
 import requests
 import urllib.parse
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime
+import pytz
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Nifty 50 Quantum Terminal",
-    page_icon="🔮",
+    page_title="Nifty 50 Executive Terminal",
+    page_icon="🏛️",
     layout="wide"
 )
 
-# --- FRESH HOLOGRAPHIC & ANIMATED FINTECH UI STYLING ---
+# --- NEW UI: OBSIDIAN & PLATINUM EXECUTIVE FINTECH STYLING ---
 st.markdown("""
 <style>
     /* Import Google Font */
     @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
-    /* Global Theme */
+    /* Global Matte Obsidian Theme */
     .stApp {
-        background: radial-gradient(circle at 50% 0%, #0f172a 0%, #030712 100%);
-        color: #f8fafc;
+        background: linear-gradient(180deg, #090a0f 0%, #040507 100%);
+        color: #f1f5f9;
         font-family: 'Plus Jakarta Sans', sans-serif;
     }
     
@@ -30,90 +31,69 @@ st.markdown("""
     footer {visibility: hidden;}
     header {visibility: hidden;}
 
-    /* Holographic Glow Header Container */
+    /* Executive Glass Header Container */
     .hero-header {
-        background: linear-gradient(135deg, rgba(30, 41, 59, 0.7) 0%, rgba(15, 23, 42, 0.8) 100%);
-        backdrop-filter: blur(24px);
-        -webkit-backdrop-filter: blur(24px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 24px;
-        padding: 28px 36px;
-        box-shadow: 0 20px 40px rgba(0, 0, 0, 0.6), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+        background: rgba(18, 20, 28, 0.85);
+        backdrop-filter: blur(20px);
+        -webkit-backdrop-filter: blur(20px);
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        border-left: 4px solid #d4af37; /* Subtle champagne gold executive accent */
+        border-radius: 16px;
+        padding: 24px 32px;
+        box-shadow: 0 16px 32px rgba(0, 0, 0, 0.7);
         margin-bottom: 24px;
         display: flex;
         justify-content: space-between;
         align-items: center;
     }
 
-    /* Live Badge with Radar Wave Animation */
+    /* Executive Live Status Pill */
     .live-badge-container {
         display: inline-flex;
         align-items: center;
-        background: rgba(16, 185, 129, 0.1);
-        border: 1px solid rgba(16, 185, 129, 0.4);
-        color: #34d399;
-        padding: 8px 16px;
-        border-radius: 50px;
-        font-size: 0.8rem;
+        background: rgba(212, 175, 55, 0.08);
+        border: 1px solid rgba(212, 175, 55, 0.3);
+        color: #e6c669;
+        padding: 6px 14px;
+        border-radius: 30px;
+        font-size: 0.75rem;
         font-weight: 700;
-        letter-spacing: 0.05em;
+        letter-spacing: 0.08em;
         text-transform: uppercase;
         gap: 8px;
-        box-shadow: 0 0 25px rgba(16, 185, 129, 0.2);
     }
-    .radar-wave {
-        width: 10px;
-        height: 10px;
-        background-color: #34d399;
+    .pulse-dot {
+        width: 8px;
+        height: 8px;
+        background-color: #e6c669;
         border-radius: 50%;
-        position: relative;
+        box-shadow: 0 0 10px #e6c669;
+        animation: pulse 1.8s infinite ease-in-out;
     }
-    .radar-wave::after {
-        content: '';
-        position: absolute;
-        top: -4px; left: -4px; right: -4px; bottom: -4px;
-        border: 2px solid #34d399;
-        border-radius: 50%;
-        animation: radar 2s infinite cubic-bezier(0.09, 0.57, 0.49, 0.9);
-    }
-    @keyframes radar {
-        0% { transform: scale(0.8); opacity: 1; }
-        100% { transform: scale(2.4); opacity: 0; }
+    @keyframes pulse {
+        0% { transform: scale(0.9); opacity: 0.7; }
+        50% { transform: scale(1.3); opacity: 1; }
+        100% { transform: scale(0.9); opacity: 0.7; }
     }
 
-    /* Floating Mini Metrics Cards */
-    .metric-card {
-        background: rgba(15, 23, 42, 0.6);
-        backdrop-filter: blur(12px);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 16px;
-        padding: 18px 22px;
-        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-        transition: transform 0.2s ease, border-color 0.2s ease;
-    }
-    .metric-card:hover {
-        transform: translateY(-2px);
-        border-color: rgba(59, 130, 246, 0.4);
-    }
-
-    /* Compact Table Wrapper Styling */
+    /* Dataframe Table Wrapper Styling */
     div[data-testid="stDataFrame"] {
-        background: rgba(15, 23, 42, 0.4);
-        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(18, 20, 28, 0.5);
+        border: 1px solid rgba(255, 255, 255, 0.05);
         border-radius: 16px;
         padding: 4px;
-        backdrop-filter: blur(12px);
-        box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+        backdrop-filter: blur(16px);
+        box-shadow: 0 12px 32px rgba(0,0,0,0.6);
     }
     
-    /* Footer Timestamp */
+    /* Terminal Footer Timestamp */
     .terminal-footer {
         text-align: center;
         color: #64748b;
-        font-size: 0.82rem;
-        margin-top: 20px;
+        font-size: 0.8rem;
+        margin-top: 24px;
         font-weight: 500;
-        letter-spacing: 0.02em;
+        letter-spacing: 0.03em;
     }
 </style>
 """, unsafe_allow_html=True)
@@ -199,17 +179,17 @@ def fetch_market_data(keys, token):
             pass
     return combined
 
-# --- STYLISH HERO HEADER ---
+# --- EXECUTIVE HERO HEADER ---
 st.markdown("""
 <div class="hero-header">
     <div>
-        <h1 style="margin: 0; font-size: 2.2rem; font-weight: 800; background: linear-gradient(90deg, #ffffff, #94a3b8); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">Nifty 50 Quantum Terminal</h1>
-        <p style="margin: 4px 0 0 0; color: #94a3b8; font-size: 0.95rem;">Real-time index intelligence, institutional telemetry, and market depth stream.</p>
+        <p style="margin: 0 0 2px 0; color: #d4af37; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;">Institutional Feed</p>
+        <h1 style="margin: 0; font-size: 1.9rem; font-weight: 800; color: #ffffff; letter-spacing: -0.02em;">Nifty 50 Executive Terminal</h1>
     </div>
     <div>
         <div class="live-badge-container">
-            <div class="radar-wave"></div>
-            Live Synchronized
+            <div class="pulse-dot"></div>
+            Secure Telemetry Active
         </div>
     </div>
 </div>
@@ -307,12 +287,12 @@ def render_live_market_data():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- COMPACT & SLEEK DATAFRAME VIEW ---
-    st.markdown("<h3 style='font-size: 1.25rem; font-weight: 700; color: #f8fafc; margin-bottom: 8px;'>📋 Constituents Live Telemetry</h3>", unsafe_allow_html=True)
+    # --- DATAFRAME VIEW ---
+    st.markdown("<h3 style='font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 8px; letter-spacing: -0.01em;'>📋 Constituents Live Telemetry</h3>", unsafe_allow_html=True)
     
     def style_change(val):
         color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#94a3b8"
-        return f"color: {color}; font-weight: 700; background-color: rgba({'52, 211, 153' if val > 0 else '248, 113, 113' if val < 0 else '148, 163, 184'}, 0.07); border-radius: 4px; padding: 2px 6px;"
+        return f"color: {color}; font-weight: 700; background-color: rgba({'52, 211, 153' if val > 0 else '248, 113, 113' if val < 0 else '148, 163, 184'}, 0.06); border-radius: 4px; padding: 2px 6px;"
 
     styled_df = df_result.style.format({
         "Weight (%)": "{:.2f}%",
@@ -321,12 +301,11 @@ def render_live_market_data():
         "Change (%)": "{:+.2f}%"
     }).map(style_change, subset=["Change (%)"])
 
-    # Compact height to prevent oversize scrolling
     st.dataframe(styled_df, use_container_width=True, height=380)
     
-    # India Standard Time (IST) Timestamp using standard library offsets (+5:30)
-    IST = timezone(timedelta(hours=5, minutes=30))
-    ist_time = datetime.now(IST).strftime('%d-%m-%Y | %I:%M:%S %p IST')
+    # India Standard Time (IST) Timestamp
+    ist_zone = pytz.timezone('Asia/Kolkata')
+    ist_time = datetime.now(ist_zone).strftime('%d-%m-%Y | %I:%M:%S %p IST')
     
     st.markdown(f"""
         <div class="terminal-footer">
