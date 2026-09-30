@@ -104,6 +104,19 @@ st.markdown("""
         height: 100%;
     }
 
+    /* Contribution List Row Item */
+    .contrib-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 6px 10px;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        font-size: 0.85rem;
+    }
+    .contrib-row:hover {
+        background: rgba(255, 255, 255, 0.02);
+    }
+
     /* Compact Table Wrapper Styling */
     div[data-testid="stDataFrame"] {
         background: rgba(13, 17, 26, 0.6);
@@ -345,8 +358,8 @@ def render_live_market_data():
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- TWO-COLUMN LAYOUT: DONUT CHART & PLACEHOLDER ---
-    col_chart, col_placeholder = st.columns([1, 1], gap="medium")
+    # --- TWO-COLUMN LAYOUT: DONUT CHART & FULL CONTRIBUTION LIST ---
+    col_chart, col_list = st.columns([1, 1], gap="medium")
 
     with col_chart:
         st.markdown("<div class='section-container'>", unsafe_allow_html=True)
@@ -362,13 +375,11 @@ def render_live_market_data():
         chart_labels = list(top_stocks["Symbol"]) + ["OTHERS"]
         chart_values = list(top_stocks["Contribution"].abs()) + [abs(others_contrib)]
         
-        # Colors: Green for positive contribution, Red for negative contribution
         chart_colors = [
             "#34d399" if c >= 0 else "#f87171" 
             for c in list(top_stocks["Contribution"]) + [others_contrib]
         ]
         
-        # Custom hover/text labels
         custom_text = [
             f"{row['Symbol']}: {row['Contribution']:+.2f}" for _, row in top_stocks.iterrows()
         ] + [f"OTHERS: {others_contrib:+.2f}"]
@@ -404,11 +415,37 @@ def render_live_market_data():
         st.plotly_chart(fig, use_container_width=True, config={'displayModeBar': False})
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with col_placeholder:
-        st.markdown("<div class='section-container' style='display: flex; flex-direction: column; justify-content: center; align-items: center; text-align: center; min-height: 380px;'>", unsafe_allow_html=True)
-        st.markdown("<div style='font-size: 2.5rem; margin-bottom: 12px;'>🔮</div>", unsafe_allow_html=True)
-        st.markdown("<h3 style='font-size: 1.2rem; font-weight: 700; color: #f1f5f9; margin-bottom: 6px;'>Reserved Analytics Module</h3>", unsafe_allow_html=True)
-        st.markdown("<p style='font-size: 0.85rem; color: #94a3b8; max-width: 280px;'>This panel is locked and ready. Tell me what widget, chart, or metrics table you want placed here next!</p>", unsafe_allow_html=True)
+    with col_list:
+        st.markdown("<div class='section-container'>", unsafe_allow_html=True)
+        st.markdown("<h3 style='font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin-bottom: 4px;'>📋 Full List Contribution Stream</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='font-size: 0.8rem; color: #94a3b8; margin-bottom: 12px;'>All 50 constituents ranked by point impact</p>", unsafe_allow_html=True)
+
+        # Scrollable container for all 50 stocks matching the reference style
+        st.markdown("<div style='max-height: 310px; overflow-y: auto; padding-right: 4px;'>", unsafe_allow_html=True)
+        
+        df_full_sorted = df_result.sort_values(by="Contribution", ascending=False)
+        max_abs_contrib = max(abs(df_full_sorted["Contribution"].max()), abs(df_full_sorted["Contribution"].min()), 1.0)
+
+        for _, row in df_full_sorted.iterrows():
+            sym = row["Symbol"]
+            contrib = row["Contribution"]
+            color = "#34d399" if contrib >= 0 else "#f87171"
+            sign = "+" if contrib >= 0 else ""
+            
+            # Proportional mini visual bar width
+            bar_width = int((abs(contrib) / max_abs_contrib) * 90)
+            
+            st.markdown(f"""
+            <div class="contrib-row">
+                <span style="font-weight: 700; color: #f1f5f9; width: 110px;">{sym}</span>
+                <span style="font-weight: 700; color: {color}; width: 80px; text-align: right;">{sign}{contrib:.2f}</span>
+                <div style="flex-grow: 1; margin-left: 16px; background: rgba(255,255,255,0.05); height: 8px; border-radius: 4px; overflow: hidden; display: flex; justify-content: {'flex-start' if contrib >= 0 else 'flex-end'};">
+                    <div style="width: {bar_width}%; background: {color}; height: 100%; border-radius: 4px;"></div>
+                </div>
+            </div>
+            """, unsafe_allow_html=True)
+            
+        st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
