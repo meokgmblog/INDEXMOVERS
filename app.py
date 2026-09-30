@@ -106,7 +106,7 @@ st.markdown("""
     .terminal-footer {
         text-align: center;
         color: #64748b;
-        font-size: 1.8rem;
+        font-size: 0.8rem;
         margin-top: 24px;
         font-weight: 500;
         letter-spacing: 0.03em;
