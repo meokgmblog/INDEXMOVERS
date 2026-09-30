@@ -420,7 +420,7 @@ def render_live_market_data():
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
             <h3 style="font-size: 1.1rem; font-weight: 700; color: #f1f5f9; margin: 0;">NIFTY Points Contribution</h3>
             <div>
-                <span style="color: #34d399; font-weight: 700; margin-right: 12px; font-size: 0.95Name;">+{total_gainer_pts:.2f}</span>
+                <span style="color: #34d399; font-weight: 700; margin-right: 12px; font-size: 0.95rem;">+{total_gainer_pts:.2f}</span>
                 <span style="color: #f87171; font-weight: 700; font-size: 0.95rem;">{total_loser_pts:.2f}</span>
             </div>
         </div>
@@ -441,25 +441,9 @@ def render_live_market_data():
             l_val = f"{losers_df.loc[i, 'Contribution']:.2f}" if i < len(losers_df) else ""
             l_pct = (abs(losers_df.loc[i, 'Contribution']) / max_loser_abs) * 100 if i < len(losers_df) else 0
             
-            st.markdown(f"""
-            <div class="matrix-row">
-                <div style="display: flex; align-items: center; width: 49%; justify-content: flex-start; gap: 6px;">
-                    <span style="font-weight: 700; color: #f1f5f9; width: 75px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{g_sym}">{g_sym}</span>
-                    <span style="font-weight: 700; color: #34d399; width: 50px; text-align: left;">{g_val}</span>
-                    <div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-end;">
-                        <div style="width: {g_pct}%; background: #34d399; height: 100%; border-radius: 3px;"></div>
-                    </div>
-                </div>
-                
-                <div style="display: flex; align-items: center; width: 49%; justify-content: flex-end; gap: 6px;">
-                    <div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-start;">
-                        <div style="width: {l_pct}%; background: #f87171; height: 100%; border-radius: 3px;"></div>
-                    </div>
-                    <span style="font-weight: 700; color: #f87171; width: 50px; text-align: right;">{l_val}</span>
-                    <span style="font-weight: 700; color: #f1f5f9; width: 75px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{l_sym}">{l_sym}</span>
-                </div>
-            </div>
-            """, unsafe_allow_html=True)
+            # Flattened single-line HTML string prevents Streamlit from interpreting it as a code block
+            row_html = f'<div class="matrix-row"><div style="display: flex; align-items: center; width: 49%; justify-content: flex-start; gap: 6px;"><span style="font-weight: 700; color: #f1f5f9; width: 75px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{g_sym}">{g_sym}</span><span style="font-weight: 700; color: #34d399; width: 50px; text-align: left;">{g_val}</span><div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-end;"><div style="width: {g_pct}%; background: #34d399; height: 100%; border-radius: 3px;"></div></div></div><div style="display: flex; align-items: center; width: 49%; justify-content: flex-end; gap: 6px;"><div style="flex-grow: 1; background: rgba(255,255,255,0.04); height: 5px; border-radius: 3px; overflow: hidden; display: flex; justify-content: flex-start;"><div style="width: {l_pct}%; background: #f87171; height: 100%; border-radius: 3px;"></div></div><span style="font-weight: 700; color: #f87171; width: 50px; text-align: right;">{l_val}</span><span style="font-weight: 700; color: #f1f5f9; width: 75px; text-align: right; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;" title="{l_sym}">{l_sym}</span></div></div>'
+            st.markdown(row_html, unsafe_allow_html=True)
 
         st.markdown("</div>", unsafe_allow_html=True)
         st.markdown("</div>", unsafe_allow_html=True)
