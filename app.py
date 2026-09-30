@@ -6,48 +6,45 @@ import time
 
 # --- PAGE CONFIGURATION ---
 st.set_page_config(
-    page_title="Nifty 50 Live Intelligence Hub",
-    page_icon="⚡",
+    page_title="Nifty 50 Executive Terminal",
+    page_icon="📈",
     layout="wide"
 )
 
-# --- PREMIUM GLASSMORPHISM & DARK THEME STYLING ---
+# --- PROFESSIONAL HIGH-CONTRAST FINANCIAL THEME STYLING ---
 st.markdown("""
 <style>
-    /* Global App Background & Font */
+    /* Global App Background & High-Contrast Font */
     .stApp {
-        background: radial-gradient(circle at 10% 20%, rgb(11, 15, 25) 0%, rgb(5, 7, 12) 90%);
-        color: #f3f4f6;
-        font-family: 'Inter', sans-serif;
+        background-color: #0d1117;
+        color: #f0f6fc;
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
     }
     
-    /* Glassmorphism Card Container */
-    .glass-card {
-        background: rgba(17, 24, 39, 0.65);
-        backdrop-filter: blur(16px);
-        -webkit-backdrop-filter: blur(16px);
-        border: 1px solid rgba(255, 255, 255, 0.08);
-        border-radius: 20px;
-        padding: 24px;
-        box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-        margin-bottom: 20px;
+    /* Clean Terminal Card Container */
+    .terminal-card {
+        background-color: #161b22;
+        border: 1px solid #30363d;
+        border-radius: 10px;
+        padding: 20px;
+        margin-bottom: 16px;
     }
     
-    /* Glow text & headers */
+    /* Headings */
     h1, h2, h3 {
         color: #ffffff !important;
-        font-weight: 700;
+        font-weight: 600;
     }
     
     /* Live Status Badge */
     .live-badge {
         display: inline-flex;
         align-items: center;
-        background: rgba(16, 185, 129, 0.15);
-        border: 1px solid rgba(16, 185, 129, 0.4);
-        color: #34d399;
+        background-color: rgba(35, 134, 54, 0.2);
+        border: 1px solid #238636;
+        color: #3fb950;
         padding: 4px 12px;
-        border-radius: 50px;
+        border-radius: 6px;
         font-size: 0.85rem;
         font-weight: 600;
         gap: 6px;
@@ -55,24 +52,14 @@ st.markdown("""
     .pulse-dot {
         width: 8px;
         height: 8px;
-        background-color: #34d399;
+        background-color: #3fb950;
         border-radius: 50%;
-        box-shadow: 0 0 8px #34d399;
-        animation: pulse 2s infinite;
+        animation: pulse 1.5s infinite;
     }
     @keyframes pulse {
-        0% { transform: scale(0.95); opacity: 0.8; }
-        50% { transform: scale(1.2); opacity: 1; }
-        100% { transform: scale(0.95); opacity: 0.8; }
-    }
-    
-    /* Custom Metric Styling */
-    .metric-box {
-        background: rgba(255, 255, 255, 0.03);
-        border: 1px solid rgba(255, 255, 255, 0.06);
-        border-radius: 14px;
-        padding: 16px;
-        text-align: center;
+        0% { opacity: 0.4; }
+        50% { opacity: 1; }
+        100% { opacity: 0.4; }
     }
 </style>
 """, unsafe_allow_html=True)
@@ -161,12 +148,12 @@ def fetch_market_data(keys, token):
 # --- HEADER SECTION ---
 col_head1, col_head2 = st.columns([3, 1])
 with col_head1:
-    st.title("⚡ Nifty 50 Intelligence Terminal")
-    st.markdown("Real-time telemetry and component market depth verification via Upstox API.")
+    st.title("📈 Nifty 50 Executive Terminal")
+    st.markdown("Real-time component telemetry and market breadth analysis.")
 with col_head2:
-    st.markdown("<div style='text-align: right; padding-top: 15px;'><span class='live-badge'><span class='pulse-dot'></span> Silent Live Feed</span></div>", unsafe_allow_html=True)
+    st.markdown("<div style='text-align: right; padding-top: 15px;'><span class='live-badge'><span class='pulse-dot'></span> Silent Feed Active</span></div>", unsafe_allow_html=True)
 
-st.markdown("<br>", unsafe_allow_html=True)
+st.markdown("---")
 
 # --- AUTO-REFRESHING LIVE FRAGMENT (Silent background polling every 10 seconds) ---
 @st.fragment(run_every=10)
@@ -177,7 +164,7 @@ def render_live_market_data():
     api_response = fetch_market_data(keys_list, UPSTOX_TOKEN)
     
     if not api_response:
-        st.error("⚠️ Failed to establish connection or retrieve market quotes. Please verify your network or token validity.")
+        st.error("⚠️ Failed to establish connection or retrieve market quotes. Please check your network connection.")
         return
         
     lookup_map = {}
@@ -202,7 +189,6 @@ def render_live_market_data():
     rows = []
     gainers_count = 0
     losers_count = 0
-    unchanged_count = 0
     
     for sym, key, weight in RAW_DATA:
         quote = (
@@ -229,8 +215,6 @@ def render_live_market_data():
             gainers_count += 1
         elif pct_change < 0:
             losers_count += 1
-        else:
-            unchanged_count += 1
             
         rows.append({
             "Symbol": sym,
@@ -243,8 +227,8 @@ def render_live_market_data():
         
     df_result = pd.DataFrame(rows)
 
-    # --- TOP METRICS ROW ---
-    m1, m2, m3, m4 = st.columns(4)
+    # --- TOP METRICS ROW (3 Columns now) ---
+    m1, m2, m3 = st.columns(3)
     
     with m1:
         if nifty_quote:
@@ -256,22 +240,18 @@ def render_live_market_data():
             st.metric(label="📊 NIFTY 50 Index", value="Unavailable")
             
     with m2:
-        st.metric(label="🚀 Market Gainers", value=f"{gainers_count} Stocks", delta="Bullish breadth" if gainers_count > losers_count else None)
+        st.metric(label="🚀 Market Gainers", value=f"{gainers_count} Stocks", delta="Positive Breadth" if gainers_count >= losers_count else None)
         
     with m3:
         st.metric(label="🔻 Market Losers", value=f"{losers_count} Stocks", delta=f"-{losers_count}" if losers_count > 0 else "0", delta_color="inverse")
-        
-    with m4:
-        st.metric(label="⚖️ Unchanged / Flat", value=f"{unchanged_count} Stocks")
 
     st.markdown("<br>", unsafe_allow_html=True)
 
-    # --- DATAFRAME VIEW INSIDE GLASS CONTAINER ---
-    st.markdown("### 📋 Nifty 50 Constituents Real-Time Matrix")
+    # --- DATAFRAME VIEW ---
+    st.subheader("📋 Nifty 50 Constituents Real-Time Matrix")
     
-    # Styling dataframe for clean visual presentation
     def style_change(val):
-        color = "#34d399" if val > 0 else "#f87171" if val < 0 else "#9ca3af"
+        color = "#3fb950" if val > 0 else "#f85149" if val < 0 else "#8b949e"
         return f"color: {color}; font-weight: 600;"
 
     styled_df = df_result.style.format({
@@ -279,12 +259,12 @@ def render_live_market_data():
         "LTP (₹)": "₹{:,.2f}",
         "Prev Close (₹)": "₹{:,.2f}",
         "Change (%)": "{:+.2f}%"
-    }).applymap(style_change, subset=["Change (%)"])
+    }).map(style_change, subset=["Change (%)"])
 
     st.dataframe(styled_df, use_container_width=True, height=520)
     
     # Last updated timestamp footer
-    st.caption(f"Last synchronized: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} (Auto-refreshes every 10 seconds silently)")
+    st.caption(f"Last synchronized: {time.strftime('%Y-%m-%d %H:%M:%S', time.localtime())} | Auto-refreshes silently every 10 seconds")
 
 # Execute the live fragment loop
 render_live_market_data()
